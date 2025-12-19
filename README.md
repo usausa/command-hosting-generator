@@ -1,1 +1,1 @@
-# command-hosting-generator
+# BunnyTail.CommandHosting
