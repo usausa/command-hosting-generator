@@ -1,1 +1,1 @@
-# BunnyTail.CommandHosting
+# Smart.Console
