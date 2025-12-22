@@ -105,11 +105,29 @@ internal sealed class CommandHostBuilder : ICommandHostBuilder
         // Execute filter configuration
         // TODO
 
+        // Service provider
+        IServiceProvider serviceProvider;
+        if (serviceProviderFactory != null)
+        {
+
+        }
+        else
+        {
+            serviceProvider = services.BuildServiceProvider();
+        }
+
+        //var customRootCommand = commandConfigurator.GetCustomRootCommand();
+        //var rootCommand = customRootCommand ?? new RootCommand();
+
         // TODO
         throw new NotImplementedException();
     }
 }
 #pragma warning restore CA1001
+
+//--------------------------------------------------------------------------------
+// Component builders
+//--------------------------------------------------------------------------------
 
 internal sealed class HostEnvironment : IHostEnvironment
 {
@@ -132,9 +150,21 @@ internal sealed class LoggingBuilder : ILoggingBuilder
     }
 }
 
+//--------------------------------------------------------------------------------
+// Command builders
+//--------------------------------------------------------------------------------
+
 internal sealed class CommandBuilder : ICommandBuilder
 {
     private readonly IServiceCollection services;
+
+    private Action<RootCommand>? rootCommandConfiguration;
+
+    private RootCommand? customRootCommand;
+
+    private readonly List<CommandDescriptor> commandRegistrations = new();
+
+    private readonly CommandFilterOptions filterOptions = new();
 
     public CommandBuilder(IServiceCollection services)
     {
@@ -149,10 +179,10 @@ internal sealed class CommandBuilder : ICommandBuilder
     public ICommandBuilder AddCommand<TCommand>(Action<ISubCommandBuilder>? configure = null)
         where TCommand : class
     {
-        throw new NotImplementedException();
+        return AddCommand<TCommand>(null, configure);
     }
 
-    public ICommandBuilder AddCommand<TCommand>(Action<CommandActionBuilderContext> builder, Action<ISubCommandBuilder>? configure = null)
+    public ICommandBuilder AddCommand<TCommand>(Action<CommandActionBuilderContext>? builder, Action<ISubCommandBuilder>? configure = null)
         where TCommand : class
     {
         throw new NotImplementedException();
@@ -171,8 +201,17 @@ internal sealed class CommandBuilder : ICommandBuilder
 
     public ICommandBuilder ConfigureFilterOptions(Action<CommandFilterOptions> configure)
     {
-        throw new NotImplementedException();
+        configure(filterOptions);
+        return this;
     }
+
+    internal Action<RootCommand>? GetRootCommandConfiguration() => rootCommandConfiguration;
+
+    internal RootCommand? GetCustomRootCommand() => customRootCommand;
+
+    internal List<CommandDescriptor> GetCommandDescriptors() => commandRegistrations;
+
+    internal CommandFilterOptions GetFilterOptions() => filterOptions;
 }
 
 internal sealed class RootCommandBuilder : IRootCommandBuilder
@@ -200,15 +239,41 @@ internal sealed class RootCommandBuilder : IRootCommandBuilder
 
 internal sealed class SubCommandBuilder : ISubCommandBuilder
 {
+    private readonly IServiceCollection services;
+
+    private readonly List<CommandDescriptor> registrations = [];
+
+    public SubCommandBuilder(IServiceCollection services)
+    {
+        this.services = services;
+    }
+
     public ISubCommandBuilder AddSubCommand<TCommand>(Action<ISubCommandBuilder>? configure = null)
         where TCommand : class
     {
-        throw new NotImplementedException();
+        return AddSubCommand<TCommand>(null, configure);
     }
 
-    public ISubCommandBuilder AddSubCommand<TCommand>(Action<CommandActionBuilderContext> builder, Action<ISubCommandBuilder>? configure = null)
+    public ISubCommandBuilder AddSubCommand<TCommand>(Action<CommandActionBuilderContext>? builder, Action<ISubCommandBuilder>? configure = null)
         where TCommand : class
     {
-        throw new NotImplementedException();
+        if (typeof(ICommand).IsAssignableFrom(typeof(TCommand)))
+        {
+            services.AddTransient<TCommand>();
+        }
+
+        var registration = new CommandDescriptor(typeof(TCommand), builder);
+
+        if (configure != null)
+        {
+            var subConfigurator = new SubCommandBuilder(services);
+            configure(subConfigurator);
+            registration.SubCommands.AddRange(subConfigurator.GetRegistrations());
+        }
+
+        registrations.Add(registration);
+        return this;
     }
+
+    internal List<CommandDescriptor> GetRegistrations() => registrations;
 }

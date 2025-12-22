@@ -35,7 +35,7 @@ public interface ICommandBuilder
         where TCommand : class;
 
     ICommandBuilder AddCommand<TCommand>(
-        Action<CommandActionBuilderContext> builder,
+        Action<CommandActionBuilderContext>? builder,
         Action<ISubCommandBuilder>? configure = null)
         where TCommand : class;
 
@@ -65,7 +65,7 @@ public interface ISubCommandBuilder
         where TCommand : class;
 
     ISubCommandBuilder AddSubCommand<TCommand>(
-        Action<CommandActionBuilderContext> builder,
+        Action<CommandActionBuilderContext>? builder,
         Action<ISubCommandBuilder>? configure = null)
         where TCommand : class;
 }

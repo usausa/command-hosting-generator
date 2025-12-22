@@ -6,7 +6,7 @@ public sealed class FilterPipelineTests
 {
     private sealed class TestServiceProvider : IServiceProvider
     {
-        public Dictionary<Type, object> Services { get; } = new();
+        public Dictionary<Type, object> Services { get; } = [];
 
         public Func<Type, object?>? GetServiceFunc { get; set; }
 

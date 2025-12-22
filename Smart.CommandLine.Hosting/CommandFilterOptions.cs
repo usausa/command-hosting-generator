@@ -14,7 +14,7 @@ public sealed class FilterCollection
     public void Add<TFilter>(int order = 0)
         where TFilter : ICommandFilter
     {
-        Descriptors ??= new List<FilterDescriptor>();
+        Descriptors ??= [];
         Descriptors.Add(new FilterDescriptor(typeof(TFilter), order));
     }
 
@@ -25,7 +25,7 @@ public sealed class FilterCollection
             throw new ArgumentException($"Type must implement '{typeof(ICommandFilter).FullName}' interface.", nameof(filterType));
         }
 
-        Descriptors ??= new List<FilterDescriptor>();
+        Descriptors ??= [];
         Descriptors.Add(new FilterDescriptor(filterType, order));
     }
 }
