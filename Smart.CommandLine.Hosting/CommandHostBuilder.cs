@@ -5,6 +5,7 @@ using System.Reflection;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -24,9 +25,9 @@ internal sealed class CommandHostBuilder : ICommandHostBuilder
 
     private Action<ICommandBuilder>? commandConfiguration;
 
-    private object? serviceProviderFactory;
+    private Func<IServiceProvider> createServiceProvider;
 
-    private Action<object>? containerConfiguration;
+    private Action<object> configureContainer = _ => { };
 
     public ConfigurationManager Configuration => configuration;
 
@@ -40,13 +41,19 @@ internal sealed class CommandHostBuilder : ICommandHostBuilder
     {
         this.args = args;
 
+        // Default service provider factory
+        createServiceProvider = () =>
+        {
+            configureContainer(Services);
+            return Services.BuildServiceProvider();
+        };
+
         // Environment
         var contentRootPath = AppContext.BaseDirectory;
         environment = new HostEnvironment
         {
             ApplicationName = Assembly.GetEntryAssembly()?.GetName().Name ?? string.Empty,
-            EnvironmentName = System.Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
-                              ?? "Production",
+            EnvironmentName = System.Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production",
             ContentRootPath = contentRootPath,
             ContentRootFileProvider = new PhysicalFileProvider(contentRootPath)
         };
@@ -57,37 +64,36 @@ internal sealed class CommandHostBuilder : ICommandHostBuilder
         // Logging
         loggingBuilder = new LoggingBuilder(services);
 
-        // TODO
-        //if (useDefaults)
-        //{
-        //    this.UseDefaultConfiguration();
-        //    this.UseDefaultLogging();
-        //}
-        //else
-        //{
-        //    services.AddLogging(builder =>
-        //    {
-        //        builder.AddConsole();
-        //    });
-        //}
+        // Default setting
+        if (useDefaults)
+        {
+            this.UseDefaultConfiguration();
+            this.UseDefaultLogging();
+        }
+        else
+        {
+            services.AddLogging(builder =>
+            {
+                builder.AddConsole();
+            });
+        }
 
         // Add basic services
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton<IHostEnvironment>(environment);
-
-        services.AddSingleton<FilterPipeline>();
-
-        services.AddOptions<CommandFilterOptions>();
     }
 
     public void ConfigureContainer<TContainerBuilder>(IServiceProviderFactory<TContainerBuilder> factory, Action<TContainerBuilder>? configure = null)
         where TContainerBuilder : notnull
     {
-        serviceProviderFactory = factory;
-        if (configure is not null)
+        createServiceProvider = () =>
         {
-            containerConfiguration = obj => configure((TContainerBuilder)obj);
-        }
+            var containerBuilder = factory.CreateBuilder(Services);
+            configureContainer(containerBuilder);
+            return factory.CreateServiceProvider(containerBuilder);
+        };
+
+        configureContainer = containerBuilder => configure?.Invoke((TContainerBuilder)containerBuilder);
     }
 
     public ICommandHostBuilder ConfigureCommands(Action<ICommandBuilder> configure)
@@ -102,25 +108,96 @@ internal sealed class CommandHostBuilder : ICommandHostBuilder
         var commandBuilder = new CommandBuilder(services);
         commandConfiguration?.Invoke(commandBuilder);
 
-        // Execute filter configuration
-        // TODO
+        var commandDescriptors = commandBuilder.GetCommandDescriptors();
+
+        // Setup filters
+        var filterTypes = new HashSet<Type>();
+
+        var globalFilters = commandBuilder.GetGlobalFilters();
+        if (globalFilters.Descriptors is not null)
+        {
+            foreach (var filterDescriptor in globalFilters.Descriptors)
+            {
+                filterTypes.Add(filterDescriptor.FilterType);
+            }
+        }
+
+        foreach (var descriptor in commandDescriptors)
+        {
+            foreach (var attribute in descriptor.CommandType.GetCustomAttributes<FilterAttribute>())
+            {
+                filterTypes.Add(attribute.FilterType);
+            }
+        }
+
+        foreach (var filterType in filterTypes)
+        {
+            services.TryAddTransient(filterType);
+        }
 
         // Service provider
-        IServiceProvider serviceProvider;
-        if (serviceProviderFactory != null)
+        var serviceProvider = createServiceProvider();
+
+        // Root command
+        var customRootCommand = commandBuilder.GetCustomRootCommand();
+        var rootCommand = customRootCommand ?? new RootCommand();
+
+        var rootCommandConfiguration = commandBuilder.GetRootCommandConfiguration();
+        rootCommandConfiguration?.Invoke(rootCommand);
+
+        // Add commands
+        foreach (var descriptor in commandDescriptors)
         {
-
+            var command = CreateCommand(serviceProvider, globalFilters, descriptor);
+            rootCommand.Subcommands.Add(command);
         }
-        else
+
+        return new CommandHostImplement(args, rootCommand, serviceProvider);
+    }
+
+    private static Command CreateCommand(IServiceProvider serviceProvider, FilterCollection globalFilters, CommandDescriptor descriptor)
+    {
+        // Create command
+        var attribute = descriptor.CommandType.GetCustomAttribute<CommandAttribute>()!;
+        var command = new Command(attribute.Name, attribute.Description);
+
+        // Build executable command
+        if (typeof(ICommand).IsAssignableFrom(descriptor.CommandType))
         {
-            serviceProvider = services.BuildServiceProvider();
+            // Build command
+            var actionBuilder = descriptor.ActionBuilder ?? CommandActionBuilderHelper.CreateReflectionBasedDelegate(descriptor.CommandType);
+            var builderContext = new CommandActionBuilderContext(descriptor.CommandType, command, serviceProvider);
+
+            actionBuilder(builderContext);
+
+            var operation = builderContext.Operation;
+            if (operation is null)
+            {
+                throw new InvalidOperationException("Operation is not set.");
+            }
+
+            // Set action
+            var filterPipeline = new FilterPipeline(serviceProvider, globalFilters);
+
+            command.SetAction(async (parseResult, token) =>
+            {
+                var commandInstance = (ICommand)ActivatorUtilities.CreateInstance(serviceProvider, descriptor.CommandType);
+                var commandContext = new CommandContext(descriptor.CommandType, commandInstance, token);
+
+                await filterPipeline.ExecuteAsync(commandContext, ctx => operation(commandInstance, parseResult, ctx)).ConfigureAwait(false);
+
+                return commandContext.ExitCode;
+            });
         }
 
-        //var customRootCommand = commandConfigurator.GetCustomRootCommand();
-        //var rootCommand = customRootCommand ?? new RootCommand();
+        // Add sub commands
+        foreach (var subDescriptor in descriptor.SubCommands)
+        {
+            var subCommand = CreateCommand(serviceProvider, globalFilters, subDescriptor);
+            command.Subcommands.Add(subCommand);
+        }
 
-        // TODO
-        throw new NotImplementedException();
+        return command;
     }
 }
 #pragma warning restore CA1001
@@ -158,13 +235,13 @@ internal sealed class CommandBuilder : ICommandBuilder
 {
     private readonly IServiceCollection services;
 
+    private RootCommand? rootCommand;
+
     private Action<RootCommand>? rootCommandConfiguration;
 
-    private RootCommand? customRootCommand;
+    private readonly List<CommandDescriptor> commandDescriptors = new();
 
-    private readonly List<CommandDescriptor> commandRegistrations = new();
-
-    private readonly CommandFilterOptions filterOptions = new();
+    private readonly FilterCollection globalFilters = new();
 
     public CommandBuilder(IServiceCollection services)
     {
@@ -173,7 +250,13 @@ internal sealed class CommandBuilder : ICommandBuilder
 
     public ICommandBuilder ConfigureRootCommand(Action<IRootCommandBuilder> configure)
     {
-        throw new NotImplementedException();
+        var rootConfigurator = new RootCommandBuilder();
+        configure(rootConfigurator);
+
+        rootCommand = rootConfigurator.GetRootCommand();
+        rootCommandConfiguration = rootConfigurator.GetConfiguration();
+
+        return this;
     }
 
     public ICommandBuilder AddCommand<TCommand>(Action<ISubCommandBuilder>? configure = null)
@@ -185,55 +268,117 @@ internal sealed class CommandBuilder : ICommandBuilder
     public ICommandBuilder AddCommand<TCommand>(Action<CommandActionBuilderContext>? builder, Action<ISubCommandBuilder>? configure = null)
         where TCommand : class
     {
-        throw new NotImplementedException();
+        if (typeof(ICommand).IsAssignableFrom(typeof(TCommand)))
+        {
+            services.AddTransient<TCommand>();
+        }
+
+        var descriptor = new CommandDescriptor(typeof(TCommand), builder);
+
+        if (configure is not null)
+        {
+            var subConfigurator = new SubCommandBuilder(services);
+            configure(subConfigurator);
+            descriptor.SubCommands.AddRange(subConfigurator.GetDescriptors());
+        }
+
+        commandDescriptors.Add(descriptor);
+        return this;
     }
 
     public ICommandBuilder AddGlobalFilter<TFilter>(int order = 0)
         where TFilter : class, ICommandFilter
     {
-        throw new NotImplementedException();
+        globalFilters.Add<TFilter>(order);
+        services.TryAddTransient<TFilter>();
+        return this;
     }
 
     public ICommandBuilder AddGlobalFilter(Type filterType, int order = 0)
     {
-        throw new NotImplementedException();
-    }
-
-    public ICommandBuilder ConfigureFilterOptions(Action<CommandFilterOptions> configure)
-    {
-        configure(filterOptions);
+        globalFilters.Add(filterType, order);
+        services.TryAddTransient(filterType);
         return this;
     }
 
+    internal RootCommand? GetCustomRootCommand() => rootCommand;
+
     internal Action<RootCommand>? GetRootCommandConfiguration() => rootCommandConfiguration;
 
-    internal RootCommand? GetCustomRootCommand() => customRootCommand;
+    internal List<CommandDescriptor> GetCommandDescriptors() => commandDescriptors;
 
-    internal List<CommandDescriptor> GetCommandDescriptors() => commandRegistrations;
-
-    internal CommandFilterOptions GetFilterOptions() => filterOptions;
+    internal FilterCollection GetGlobalFilters() => globalFilters;
 }
 
 internal sealed class RootCommandBuilder : IRootCommandBuilder
 {
+    private string? name;
+
+    private string? description;
+
+    private RootCommand? rootCommand;
+
+    private Action<RootCommand>? configure;
+
+    // ReSharper disable once ParameterHidesMember
     public IRootCommandBuilder WithName(string name)
     {
-        throw new NotImplementedException();
+        this.name = name;
+        return this;
     }
 
+    // ReSharper disable once ParameterHidesMember
     public IRootCommandBuilder WithDescription(string description)
     {
-        throw new NotImplementedException();
+        this.description = description;
+        return this;
     }
 
+    // ReSharper disable once ParameterHidesMember
     public IRootCommandBuilder UseRootCommand(RootCommand rootCommand)
     {
-        throw new NotImplementedException();
+        this.rootCommand = rootCommand;
+        return this;
     }
 
+    // ReSharper disable once ParameterHidesMember
     public IRootCommandBuilder Configure(Action<RootCommand> configure)
     {
-        throw new NotImplementedException();
+        this.configure = configure;
+        return this;
+    }
+
+    internal RootCommand? GetRootCommand()
+    {
+        if (rootCommand != null)
+        {
+            return rootCommand;
+        }
+
+        if (name != null)
+        {
+            return new RootCommand(name);
+        }
+
+        return null;
+    }
+
+    internal Action<RootCommand>? GetConfiguration()
+    {
+        if ((description is null) && (configure is null))
+        {
+            return null;
+        }
+
+        return command =>
+        {
+            if (description is not null)
+            {
+                command.Description = description;
+            }
+
+            configure?.Invoke(command);
+        };
     }
 }
 
@@ -241,7 +386,7 @@ internal sealed class SubCommandBuilder : ISubCommandBuilder
 {
     private readonly IServiceCollection services;
 
-    private readonly List<CommandDescriptor> registrations = [];
+    private readonly List<CommandDescriptor> descriptors = [];
 
     public SubCommandBuilder(IServiceCollection services)
     {
@@ -262,18 +407,18 @@ internal sealed class SubCommandBuilder : ISubCommandBuilder
             services.AddTransient<TCommand>();
         }
 
-        var registration = new CommandDescriptor(typeof(TCommand), builder);
+        var descriptor = new CommandDescriptor(typeof(TCommand), builder);
 
         if (configure != null)
         {
             var subConfigurator = new SubCommandBuilder(services);
             configure(subConfigurator);
-            registration.SubCommands.AddRange(subConfigurator.GetRegistrations());
+            descriptor.SubCommands.AddRange(subConfigurator.descriptors);
         }
 
-        registrations.Add(registration);
+        descriptors.Add(descriptor);
         return this;
     }
 
-    internal List<CommandDescriptor> GetRegistrations() => registrations;
+    internal List<CommandDescriptor> GetDescriptors() => descriptors;
 }

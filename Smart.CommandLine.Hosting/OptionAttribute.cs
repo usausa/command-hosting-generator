@@ -5,8 +5,23 @@ internal static class OptionPosition
     public const int Auto = -1;
 }
 
+#pragma warning disable CA1711
+public interface IOptionAttribute
+{
+    int GetPosition();
+
+    string GetName();
+
+    string? GetDescription();
+
+    bool GetIsRequired();
+
+    object? GetDefaultValue();
+}
+#pragma warning restore CA1711
+
 [AttributeUsage(AttributeTargets.Property)]
-public sealed class OptionAttribute : Attribute
+public abstract class BaseOptionAttribute : Attribute, IOptionAttribute
 {
     public int Position { get; }
 
@@ -16,41 +31,55 @@ public sealed class OptionAttribute : Attribute
 
     public bool IsRequired { get; set; } = true;
 
-    public OptionAttribute(string name)
-    {
-        Position = OptionPosition.Auto;
-        Name = name;
-    }
-
-    public OptionAttribute(int position, string name)
+    protected BaseOptionAttribute(int position, string name)
     {
         Position = position;
         Name = name;
     }
+
+#pragma warning disable CA1033
+    int IOptionAttribute.GetPosition() => Position;
+
+    string IOptionAttribute.GetName() => Name;
+
+    string? IOptionAttribute.GetDescription() => Description;
+
+    bool IOptionAttribute.GetIsRequired() => IsRequired;
+
+    object? IOptionAttribute.GetDefaultValue() => ResolveDefaultValue();
+
+    protected abstract object? ResolveDefaultValue();
+#pragma warning restore CA1033
 }
 
-[AttributeUsage(AttributeTargets.Property)]
-public sealed class OptionAttribute<T> : Attribute
+public sealed class OptionAttribute : BaseOptionAttribute
 {
-    public int Position { get; }
+    public OptionAttribute(string name)
+        : base(OptionPosition.Auto, name)
+    {
+    }
 
-    public string Name { get; }
+    public OptionAttribute(int position, string name)
+        : base(position, name)
+    {
+    }
 
-    public string? Description { get; set; }
+    protected override object? ResolveDefaultValue() => null;
+}
 
-    public bool IsRequired { get; set; } = true;
-
+public sealed class OptionAttribute<T> : BaseOptionAttribute
+{
     public T? DefaultValue { get; set; }
 
     public OptionAttribute(string name)
+        : base(OptionPosition.Auto, name)
     {
-        Position = OptionPosition.Auto;
-        Name = name;
     }
 
     public OptionAttribute(int position, string name)
+        : base(position, name)
     {
-        Position = position;
-        Name = name;
     }
+
+    protected override object? ResolveDefaultValue() => DefaultValue;
 }

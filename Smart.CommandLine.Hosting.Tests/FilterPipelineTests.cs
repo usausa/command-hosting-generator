@@ -1,7 +1,5 @@
 namespace Smart.CommandLine.Hosting;
 
-using Microsoft.Extensions.Options;
-
 public sealed class FilterPipelineTests
 {
     private sealed class TestServiceProvider : IServiceProvider
@@ -154,16 +152,12 @@ public sealed class FilterPipelineTests
     public async Task ExecuteAsync_WithoutFilters_ExecutesActionDirectly()
     {
         // Arrange
-        var options = new CommandFilterOptions();
+        var globalFilters = new FilterCollection();
         var serviceProvider = new TestServiceProvider();
-        var pipeline = new FilterPipeline(serviceProvider, Options.Create(options));
+        var pipeline = new FilterPipeline(serviceProvider, globalFilters);
 
         var command = new TestCommand();
-        var context = new CommandContext
-        {
-            CommandType = typeof(TestCommand),
-            Command = command
-        };
+        var context = new CommandContext(typeof(TestCommand), command, CancellationToken.None);
 
         // Act
         await pipeline.ExecuteAsync(context, ctx => ctx.Command.ExecuteAsync(ctx));
@@ -177,20 +171,16 @@ public sealed class FilterPipelineTests
     {
         // Arrange
         var log = new List<string>();
-        var options = new CommandFilterOptions();
-        options.GlobalFilters.Add<LoggingFilter>(order: 0);
+        var globalFilters = new FilterCollection();
+        globalFilters.Add<LoggingFilter>(order: 0);
 
         var serviceProvider = new TestServiceProvider();
         serviceProvider.AddService(typeof(LoggingFilter), new LoggingFilter(log));
 
-        var pipeline = new FilterPipeline(serviceProvider, Options.Create(options));
+        var pipeline = new FilterPipeline(serviceProvider, globalFilters);
 
         var command = new TestCommand();
-        var context = new CommandContext
-        {
-            CommandType = typeof(TestCommand),
-            Command = command
-        };
+        var context = new CommandContext(typeof(TestCommand), command, CancellationToken.None);
 
         // Act
         await pipeline.ExecuteAsync(context, ctx =>
@@ -212,17 +202,13 @@ public sealed class FilterPipelineTests
     {
         // Arrange
         var log = new List<string>();
-        var options = new CommandFilterOptions();
+        var globalFilters = new FilterCollection();
         var serviceProvider = new TestServiceProvider();
         serviceProvider.AddService(typeof(GlobalFilter1), new GlobalFilter1(log));
 
-        var pipeline = new FilterPipeline(serviceProvider, Options.Create(options));
+        var pipeline = new FilterPipeline(serviceProvider, globalFilters);
 
-        var context = new CommandContext
-        {
-            CommandType = typeof(CommandWithFilter),
-            Command = new CommandWithFilter()
-        };
+        var context = new CommandContext(typeof(CommandWithFilter), new CommandWithFilter(), CancellationToken.None);
 
         // Act
         await pipeline.ExecuteAsync(context, ctx =>
@@ -243,20 +229,16 @@ public sealed class FilterPipelineTests
     {
         // Arrange
         var log = new List<string>();
-        var options = new CommandFilterOptions();
-        options.GlobalFilters.Add<LoggingFilter>(order: 5);
+        var globalFilters = new FilterCollection();
+        globalFilters.Add<LoggingFilter>(order: 5);
 
         var serviceProvider = new TestServiceProvider();
         serviceProvider.AddService(typeof(LoggingFilter), new LoggingFilter(log, 5));
         serviceProvider.AddService(typeof(GlobalFilter1), new GlobalFilter1(log));
 
-        var pipeline = new FilterPipeline(serviceProvider, Options.Create(options));
+        var pipeline = new FilterPipeline(serviceProvider, globalFilters);
 
-        var context = new CommandContext
-        {
-            CommandType = typeof(CommandWithFilter),
-            Command = new CommandWithFilter()
-        };
+        var context = new CommandContext(typeof(CommandWithFilter), new CommandWithFilter(), CancellationToken.None);
 
         // Act
         await pipeline.ExecuteAsync(context, ctx =>
@@ -279,21 +261,17 @@ public sealed class FilterPipelineTests
     {
         // Arrange
         var log = new List<string>();
-        var options = new CommandFilterOptions();
-        options.GlobalFilters.Add<LoggingFilter>(order: 1);
+        var globalFilters = new FilterCollection();
+        globalFilters.Add<LoggingFilter>(order: 1);
 
         var serviceProvider = new TestServiceProvider();
         serviceProvider.AddService(typeof(LoggingFilter), new LoggingFilter(log, 1));
         serviceProvider.AddService(typeof(GlobalFilter1), new GlobalFilter1(log));
         serviceProvider.AddService(typeof(GlobalFilter2), new GlobalFilter2(log));
 
-        var pipeline = new FilterPipeline(serviceProvider, Options.Create(options));
+        var pipeline = new FilterPipeline(serviceProvider, globalFilters);
 
-        var context = new CommandContext
-        {
-            CommandType = typeof(CommandWithMultipleFilters),
-            Command = new CommandWithMultipleFilters()
-        };
+        var context = new CommandContext(typeof(CommandWithMultipleFilters), new CommandWithMultipleFilters(), CancellationToken.None);
 
         // Act
         await pipeline.ExecuteAsync(context, ctx =>
@@ -319,8 +297,8 @@ public sealed class FilterPipelineTests
     {
         // Arrange
         var log = new List<string>();
-        var options = new CommandFilterOptions();
-        options.GlobalFilters.Add<LoggingFilter>(order: 30);
+        var globalFilters = new FilterCollection();
+        globalFilters.Add<LoggingFilter>(order: 30);
 
         var filter1 = new LoggingFilter(log, 30);
         var filter2 = new LoggingFilter(log, 10);
@@ -331,13 +309,9 @@ public sealed class FilterPipelineTests
         serviceProvider.AddService(typeof(GlobalFilter1), filter2);
         serviceProvider.AddService(typeof(GlobalFilter2), filter3);
 
-        var pipeline = new FilterPipeline(serviceProvider, Options.Create(options));
+        var pipeline = new FilterPipeline(serviceProvider, globalFilters);
 
-        var context = new CommandContext
-        {
-            CommandType = typeof(CommandWithMultipleFilters),
-            Command = new CommandWithMultipleFilters()
-        };
+        var context = new CommandContext(typeof(CommandWithMultipleFilters), new CommandWithMultipleFilters(), CancellationToken.None);
 
         // Act
         await pipeline.ExecuteAsync(context, _ =>
@@ -357,20 +331,16 @@ public sealed class FilterPipelineTests
     public async Task ExecuteAsync_FilterCanModifyExitCode()
     {
         // Arrange
-        var options = new CommandFilterOptions();
-        options.GlobalFilters.Add<ExitCodeFilter>(order: 0);
+        var globalFilters = new FilterCollection();
+        globalFilters.Add<ExitCodeFilter>(order: 0);
 
         var serviceProvider = new TestServiceProvider();
         serviceProvider.AddService(typeof(ExitCodeFilter), new ExitCodeFilter(42));
 
-        var pipeline = new FilterPipeline(serviceProvider, Options.Create(options));
+        var pipeline = new FilterPipeline(serviceProvider, globalFilters);
 
         var command = new TestCommand();
-        var context = new CommandContext
-        {
-            CommandType = typeof(TestCommand),
-            Command = command
-        };
+        var context = new CommandContext(typeof(TestCommand), command, CancellationToken.None);
 
         // Act
         await pipeline.ExecuteAsync(context, _ => ValueTask.CompletedTask);
@@ -383,20 +353,16 @@ public sealed class FilterPipelineTests
     public async Task ExecuteAsync_FilterCanShortCircuit()
     {
         // Arrange
-        var options = new CommandFilterOptions();
-        options.GlobalFilters.Add<ShortCircuitFilter>(order: 0);
+        var globalFilters = new FilterCollection();
+        globalFilters.Add<ShortCircuitFilter>(order: 0);
 
         var serviceProvider = new TestServiceProvider();
         serviceProvider.AddService(typeof(ShortCircuitFilter), new ShortCircuitFilter());
 
-        var pipeline = new FilterPipeline(serviceProvider, Options.Create(options));
+        var pipeline = new FilterPipeline(serviceProvider, globalFilters);
 
         var command = new TestCommand();
-        var context = new CommandContext
-        {
-            CommandType = typeof(TestCommand),
-            Command = command
-        };
+        var context = new CommandContext(typeof(TestCommand), command, CancellationToken.None);
 
         // Act
         await pipeline.ExecuteAsync(context, ctx => ctx.Command.ExecuteAsync(ctx));
@@ -410,19 +376,15 @@ public sealed class FilterPipelineTests
     public async Task ExecuteAsync_WithMissingFilterInServiceProvider_SkipsFilter()
     {
         // Arrange
-        var options = new CommandFilterOptions();
-        options.GlobalFilters.Add<LoggingFilter>(order: 0);
+        var globalFilters = new FilterCollection();
+        globalFilters.Add<LoggingFilter>(order: 0);
 
         var serviceProvider = new TestServiceProvider(); // No filter registered
 
-        var pipeline = new FilterPipeline(serviceProvider, Options.Create(options));
+        var pipeline = new FilterPipeline(serviceProvider, globalFilters);
 
         var command = new TestCommand();
-        var context = new CommandContext
-        {
-            CommandType = typeof(TestCommand),
-            Command = command
-        };
+        var context = new CommandContext(typeof(TestCommand), command, CancellationToken.None);
 
         // Act
         await pipeline.ExecuteAsync(context, ctx => ctx.Command.ExecuteAsync(ctx));
@@ -436,8 +398,8 @@ public sealed class FilterPipelineTests
     {
         // Arrange
         var log = new List<string>();
-        var options = new CommandFilterOptions();
-        options.GlobalFilters.Add<LoggingFilter>(order: 10);
+        var globalFilters = new FilterCollection();
+        globalFilters.Add<LoggingFilter>(order: 10);
 
         var filter1 = new LoggingFilter(log, 10);
         var filter2 = new LoggingFilter(log, 10);
@@ -459,14 +421,10 @@ public sealed class FilterPipelineTests
             return null;
         };
 
-        var pipeline = new FilterPipeline(serviceProvider, Options.Create(options));
+        var pipeline = new FilterPipeline(serviceProvider, globalFilters);
 
         var command = new TestCommand();
-        var context = new CommandContext
-        {
-            CommandType = typeof(TestCommand),
-            Command = command
-        };
+        var context = new CommandContext(typeof(TestCommand), command, CancellationToken.None);
 
         // Act
         await pipeline.ExecuteAsync(context, ctx =>
@@ -487,24 +445,17 @@ public sealed class FilterPipelineTests
     {
         // Arrange
         var log = new List<string>();
-        var options = new CommandFilterOptions();
-        options.GlobalFilters.Add<LoggingFilter>(order: 0);
+        var globalFilters = new FilterCollection();
+        globalFilters.Add<LoggingFilter>(order: 0);
 
         var serviceProvider = new TestServiceProvider();
         serviceProvider.AddService(typeof(LoggingFilter), new LoggingFilter(log));
 
-        var pipeline = new FilterPipeline(serviceProvider, Options.Create(options));
+        var pipeline = new FilterPipeline(serviceProvider, globalFilters);
 
         var command = new TestCommand();
-        var context = new CommandContext
-        {
-            CommandType = typeof(TestCommand),
-            Command = command,
-            Items =
-            {
-                ["test-key"] = "test-value"
-            }
-        };
+        var context = new CommandContext(typeof(TestCommand), command, CancellationToken.None);
+        context.Items.Add("test-key", "test-value");
 
         // Act
         await pipeline.ExecuteAsync(context, ctx =>
@@ -523,20 +474,16 @@ public sealed class FilterPipelineTests
     {
         // Arrange
         var log = new List<string>();
-        var options = new CommandFilterOptions();
-        options.GlobalFilters.Add<LoggingFilter>(order: 0);
+        var globalFilters = new FilterCollection();
+        globalFilters.Add<LoggingFilter>(order: 0);
 
         var serviceProvider = new TestServiceProvider();
         serviceProvider.AddService(typeof(LoggingFilter), new LoggingFilter(log));
 
-        var pipeline = new FilterPipeline(serviceProvider, Options.Create(options));
+        var pipeline = new FilterPipeline(serviceProvider, globalFilters);
 
         var command = new TestCommand();
-        var context = new CommandContext
-        {
-            CommandType = typeof(TestCommand),
-            Command = command
-        };
+        var context = new CommandContext(typeof(TestCommand), command, CancellationToken.None);
 
         // Act
         await pipeline.ExecuteAsync(context, ctx =>
@@ -558,8 +505,8 @@ public sealed class FilterPipelineTests
     {
         // Arrange
         var log = new List<string>();
-        var options = new CommandFilterOptions();
-        options.GlobalFilters.Add<LoggingFilter>(order: -10);
+        var globalFilters = new FilterCollection();
+        globalFilters.Add<LoggingFilter>(order: -10);
 
         var filter1 = new LoggingFilter(log, -10);
         var filter2 = new LoggingFilter(log, 5);
@@ -585,13 +532,9 @@ public sealed class FilterPipelineTests
             return null;
         };
 
-        var pipeline = new FilterPipeline(serviceProvider, Options.Create(options));
+        var pipeline = new FilterPipeline(serviceProvider, globalFilters);
 
-        var context = new CommandContext
-        {
-            CommandType = typeof(CommandWithFilter),
-            Command = new CommandWithFilter()
-        };
+        var context = new CommandContext(typeof(CommandWithFilter), new CommandWithFilter(), CancellationToken.None);
 
         // Act
         await pipeline.ExecuteAsync(context, ctx =>

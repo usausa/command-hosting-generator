@@ -1,13 +1,7 @@
 namespace Smart.CommandLine.Hosting;
 
-public sealed class CommandFilterOptions
-{
-    public FilterCollection GlobalFilters { get; } = new();
-}
-
 #pragma warning disable CA1711
-public sealed class FilterCollection
-#pragma warning restore CA1711
+internal sealed class FilterCollection
 {
     internal List<FilterDescriptor>? Descriptors { get; set; }
 
@@ -29,3 +23,4 @@ public sealed class FilterCollection
         Descriptors.Add(new FilterDescriptor(filterType, order));
     }
 }
+#pragma warning restore CA1711

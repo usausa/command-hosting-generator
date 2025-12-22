@@ -8,19 +8,19 @@ internal sealed class FilterPipeline
 {
     private readonly IServiceProvider serviceProvider;
 
-    private readonly CommandFilterOptions options;
+    private readonly FilterCollection globalFilters;
 
-    public FilterPipeline(IServiceProvider serviceProvider, IOptions<CommandFilterOptions> options)
+    public FilterPipeline(IServiceProvider serviceProvider, FilterCollection globalFilters)
     {
         this.serviceProvider = serviceProvider;
-        this.options = options.Value;
+        this.globalFilters = globalFilters;
     }
 
     public ValueTask ExecuteAsync(CommandContext context, Func<CommandContext, ValueTask> action)
     {
         // Collect filters
-        var filters = options.GlobalFilters.Descriptors is not null
-            ? new List<FilterDescriptor>(options.GlobalFilters.Descriptors)
+        var filters = globalFilters.Descriptors is not null
+            ? new List<FilterDescriptor>(globalFilters.Descriptors)
             : [];
 
         // ReSharper disable once LoopCanBeConvertedToQuery

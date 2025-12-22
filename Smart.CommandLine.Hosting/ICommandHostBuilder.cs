@@ -43,8 +43,6 @@ public interface ICommandBuilder
         where TFilter : class, ICommandFilter;
 
     ICommandBuilder AddGlobalFilter(Type filterType, int order = 0);
-
-    ICommandBuilder ConfigureFilterOptions(Action<CommandFilterOptions> configure);
 }
 
 public interface IRootCommandBuilder

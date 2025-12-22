@@ -11,9 +11,18 @@ public sealed class CommandContext
         }
     }
 
-    public ICommand Command { get; internal set; } = default!;
+    public Type CommandType { get; }
 
-    public Type CommandType { get; internal set; } = default!;
+    public ICommand Command { get; }
+
+    public CancellationToken CancellationToken { get; }
 
     public int ExitCode { get; set; }
+
+    public CommandContext(Type commandType, ICommand command, CancellationToken cancellationToken)
+    {
+        CommandType = commandType;
+        Command = command;
+        CancellationToken = cancellationToken;
+    }
 }

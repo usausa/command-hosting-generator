@@ -15,9 +15,9 @@ internal sealed class CommandDescriptor
 
     public Action<CommandActionBuilderContext>? ActionBuilder { get; }
 
-    public CommandDescriptor(Type commandType, Action<CommandActionBuilderContext>? actionBuilder = null)
+    public CommandDescriptor(Type commandType, Action<CommandActionBuilderContext>? builder = null)
     {
         CommandType = commandType;
-        ActionBuilder = actionBuilder;
+        ActionBuilder = builder;
     }
 }

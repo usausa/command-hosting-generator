@@ -2,14 +2,6 @@ namespace Smart.CommandLine.Hosting;
 
 using System.CommandLine;
 
-// ReSharper disable once UnusedType.Global
-#pragma warning disable CA1711
-public delegate ValueTask CommandActionDelegate(
-    ICommand command,
-    ParseResult parseResult,
-    CommandContext commandContext);
-#pragma warning disable CA1711
-
 public sealed class CommandActionBuilderContext
 {
     private readonly Command command;
@@ -20,7 +12,7 @@ public sealed class CommandActionBuilderContext
 
     public CommandActionDelegate? Operation { get; set; }
 
-    public CommandActionBuilderContext(Command command, Type commandType, IServiceProvider serviceProvider)
+    public CommandActionBuilderContext(Type commandType, Command command, IServiceProvider serviceProvider)
     {
         this.command = command;
         CommandType = commandType;
