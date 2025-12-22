@@ -3,10 +3,6 @@ namespace Smart.CommandLine.Hosting;
 public sealed class CommandFilterOptions
 {
     public FilterCollection GlobalFilters { get; } = new();
-
-    public bool IncludeBaseClassFilters { get; set; } = true;
-
-    public int DefaultFilterOrder { get; set; }
 }
 
 #pragma warning disable CA1711
@@ -19,11 +15,7 @@ public sealed class FilterCollection
         where TFilter : ICommandFilter
     {
         Descriptors ??= new List<FilterDescriptor>();
-        Descriptors.Add(new FilterDescriptor
-        {
-            FilterType = typeof(TFilter),
-            Order = order
-        });
+        Descriptors.Add(new FilterDescriptor(typeof(TFilter), order));
     }
 
     public void Add(Type filterType, int order = 0)
@@ -34,17 +26,6 @@ public sealed class FilterCollection
         }
 
         Descriptors ??= new List<FilterDescriptor>();
-        Descriptors.Add(new FilterDescriptor
-        {
-            FilterType = filterType,
-            Order = order
-        });
+        Descriptors.Add(new FilterDescriptor(filterType, order));
     }
-}
-
-internal sealed class FilterDescriptor
-{
-    public Type FilterType { get; set; } = default!;
-
-    public int Order { get; set; }
 }
