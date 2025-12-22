@@ -1,5 +1,6 @@
 namespace Smart.CommandLine.Hosting;
 
+using System.CommandLine;
 using System.Reflection;
 
 using Microsoft.Extensions.Configuration;
@@ -97,6 +98,13 @@ internal sealed class CommandHostBuilder : ICommandHostBuilder
 
     public ICommandHost Build()
     {
+        // Execute command configuration
+        var commandBuilder = new CommandBuilder(services);
+        commandConfiguration?.Invoke(commandBuilder);
+
+        // Execute filter configuration
+        // TODO
+
         // TODO
         throw new NotImplementedException();
     }
@@ -121,5 +129,86 @@ internal sealed class LoggingBuilder : ILoggingBuilder
     public LoggingBuilder(IServiceCollection services)
     {
         Services = services;
+    }
+}
+
+internal sealed class CommandBuilder : ICommandBuilder
+{
+    private readonly IServiceCollection services;
+
+    public CommandBuilder(IServiceCollection services)
+    {
+        this.services = services;
+    }
+
+    public ICommandBuilder ConfigureRootCommand(Action<IRootCommandBuilder> configure)
+    {
+        throw new NotImplementedException();
+    }
+
+    public ICommandBuilder AddCommand<TCommand>(Action<ISubCommandBuilder>? configure = null)
+        where TCommand : class
+    {
+        throw new NotImplementedException();
+    }
+
+    public ICommandBuilder AddCommand<TCommand>(Action<CommandActionBuilderContext> builder, Action<ISubCommandBuilder>? configure = null)
+        where TCommand : class
+    {
+        throw new NotImplementedException();
+    }
+
+    public ICommandBuilder AddGlobalFilter<TFilter>(int order = 0)
+        where TFilter : class, ICommandFilter
+    {
+        throw new NotImplementedException();
+    }
+
+    public ICommandBuilder AddGlobalFilter(Type filterType, int order = 0)
+    {
+        throw new NotImplementedException();
+    }
+
+    public ICommandBuilder ConfigureFilterOptions(Action<CommandFilterOptions> configure)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+internal sealed class RootCommandBuilder : IRootCommandBuilder
+{
+    public IRootCommandBuilder WithName(string name)
+    {
+        throw new NotImplementedException();
+    }
+
+    public IRootCommandBuilder WithDescription(string description)
+    {
+        throw new NotImplementedException();
+    }
+
+    public IRootCommandBuilder UseRootCommand(RootCommand rootCommand)
+    {
+        throw new NotImplementedException();
+    }
+
+    public IRootCommandBuilder Configure(Action<RootCommand> configure)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+internal sealed class SubCommandBuilder : ISubCommandBuilder
+{
+    public ISubCommandBuilder AddSubCommand<TCommand>(Action<ISubCommandBuilder>? configure = null)
+        where TCommand : class
+    {
+        throw new NotImplementedException();
+    }
+
+    public ISubCommandBuilder AddSubCommand<TCommand>(Action<CommandActionBuilderContext> builder, Action<ISubCommandBuilder>? configure = null)
+        where TCommand : class
+    {
+        throw new NotImplementedException();
     }
 }

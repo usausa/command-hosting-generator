@@ -1,6 +1,6 @@
 namespace Smart.CommandLine.Hosting;
 
-public interface ICommandHost
+public interface ICommandHost : IAsyncDisposable
 {
-    Task<int> RunAsync();
+    ValueTask<int> RunAsync();
 }
