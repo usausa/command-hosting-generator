@@ -1,5 +1,5 @@
 namespace Smart.CommandLine.Hosting;
 
-public sealed class CommandLineHost
+internal sealed class FilterPipeline
 {
 }
