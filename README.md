@@ -125,3 +125,7 @@ public sealed class LoggingFilter : ICommandFilter
     }
 }
 ```
+
+# TODO
+
+- [ ] Source Generator based builder
