@@ -31,25 +31,24 @@ builder.ConfigureCommands(commands =>
     commands.ConfigureRootCommand(root =>
     {
         root.WithDescription("Sample CLI tool");
+    });
 
-        commands.AddGlobalFilter<ExecutionTimeFilter>(order: -100);
-        commands.AddGlobalFilter<ExceptionHandlingFilter>(order: Int32.MaxValue);
+    commands.AddGlobalFilter<ExecutionTimeFilter>(order: -100);
+    commands.AddGlobalFilter<ExceptionHandlingFilter>(order: Int32.MaxValue);
 
-        commands.AddCommand<MessageCommand>();
-        commands.AddCommand<GreetCommand>();
-        commands.AddCommand<FilterCommand>();
-        commands.AddCommand<ExceptionCommand>();
-        // TODO
-        //commands.AddCommand<UserCommand>(user =>
-        //{
-        //    user.AddSubCommand<UserListCommand>();
-        //    user.AddSubCommand<UserAddCommand>();
-        //    user.AddSubCommand<UserRoleCommand>(role =>
-        //    {
-        //        role.AddSubCommand<UserRoleAssignCommand>();
-        //        role.AddSubCommand<UserRoleRemoveCommand>();
-        //    });
-        //});
+    commands.AddCommand<MessageCommand>();
+    commands.AddCommand<GreetCommand>();
+    commands.AddCommand<FilterCommand>();
+    commands.AddCommand<ExceptionCommand>();
+    commands.AddCommand<UserCommand>(user =>
+    {
+        user.AddSubCommand<UserListCommand>();
+        user.AddSubCommand<UserAddCommand>();
+        user.AddSubCommand<UserRoleCommand>(role =>
+        {
+            role.AddSubCommand<UserRoleAssignCommand>();
+            role.AddSubCommand<UserRoleRemoveCommand>();
+        });
     });
 });
 

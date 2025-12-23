@@ -1,4 +1,8 @@
+// ReSharper disable AutoPropertyCanBeMadeGetOnly.Global
+// ReSharper disable ClassNeverInstantiated.Global
 // ReSharper disable MemberCanBePrivate.Global
+// ReSharper disable MemberCanBeProtected.Global
+// ReSharper disable UnusedAutoPropertyAccessor.Global
 namespace Develop;
 
 using Microsoft.Extensions.Logging;
@@ -114,9 +118,9 @@ public sealed class MessageCommand : ICommandHandler
 {
     private readonly ILogger<MessageCommand> log;
 
-    public MessageCommand(ILogger<MessageCommand> logger)
+    public MessageCommand(ILogger<MessageCommand> log)
     {
-        log = logger;
+        this.log = log;
     }
 
     [Option<string>("--text", "-t", Description = "Text to show", IsRequired = true)]
@@ -164,9 +168,9 @@ public sealed class FilterCommand : ICommandHandler
 {
     private readonly ILogger<FilterCommand> log;
 
-    public FilterCommand(ILogger<FilterCommand> logger)
+    public FilterCommand(ILogger<FilterCommand> log)
     {
-        log = logger;
+        this.log = log;
     }
 
     [Option<string>("--message", "-m", Description = "Message to display", IsRequired = true)]
@@ -182,7 +186,7 @@ public sealed class FilterCommand : ICommandHandler
     }
 }
 
-[Command("exception", Description = "Exception testt")]
+[Command("exception", Description = "Exception test")]
 public sealed class ExceptionCommand : ICommandHandler
 {
     public ValueTask ExecuteAsync(CommandContext context)
@@ -195,4 +199,104 @@ public sealed class ExceptionCommand : ICommandHandler
 // Sub command
 //--------------------------------------------------------------------------------
 
-// TODO
+[Command("user", Description = "User level 1")]
+public sealed class UserCommand
+{
+}
+
+[Command("list", Description = "User level 1-1")]
+public sealed class UserListCommand : ICommandHandler
+{
+    private readonly ILogger<UserListCommand> log;
+
+    public UserListCommand(ILogger<UserListCommand> log)
+    {
+        this.log = log;
+    }
+
+    [Option<int>("--count", "-c", Description = "Number of users", DefaultValue = 1)]
+    public int Count { get; set; }
+
+    public ValueTask ExecuteAsync(CommandContext context)
+    {
+        log.LogInformation("Listing {Count} users", Count);
+        for (var i = 1; i <= Count; i++)
+        {
+            log.LogInformation(" {Index}: User-{No}", i, i);
+        }
+        return ValueTask.CompletedTask;
+    }
+}
+
+[Command("add", Description = "User level 1-2")]
+public sealed class UserAddCommand : ICommandHandler
+{
+    private readonly ILogger<UserAddCommand> log;
+
+    public UserAddCommand(ILogger<UserAddCommand> log)
+    {
+        this.log = log;
+    }
+
+    [Option<string>("--user", "-u", Description = "Username to add", IsRequired = true)]
+    public string Username { get; set; } = default!;
+
+    [Option<string>("--email", "-e", Description = "User email address", IsRequired = true)]
+    public string Email { get; set; } = default!;
+
+    public ValueTask ExecuteAsync(CommandContext context)
+    {
+        log.LogInformation("Adding user: {Username} ({Email})", Username, Email);
+        return ValueTask.CompletedTask;
+    }
+}
+
+[Command("role", Description = "User level 1-3")]
+public sealed class UserRoleCommand
+{
+}
+
+public abstract class UserRoleCommandBase : ICommandHandler
+{
+    [Option<string>("--user", "-u", Description = "Username to add", IsRequired = true)]
+    public string Username { get; set; } = default!;
+
+    [Option<string>("--role", "-r", Description = "Username to add", IsRequired = true)]
+    public string Role { get; set; } = default!;
+
+    public abstract ValueTask ExecuteAsync(CommandContext context);
+}
+
+[Command("assign", Description = "User level 1-3-1")]
+public sealed class UserRoleAssignCommand : UserRoleCommandBase
+{
+    private readonly ILogger<UserRoleAssignCommand> log;
+
+    public UserRoleAssignCommand(ILogger<UserRoleAssignCommand> log)
+    {
+        this.log = log;
+    }
+
+    public override ValueTask ExecuteAsync(CommandContext context)
+    {
+        log.LogInformation("Assign role '{Role}' to user '{Username}'", Role, Username);
+        return ValueTask.CompletedTask;
+    }
+}
+
+[Command("remove", Description = "User level 1-3-2")]
+public sealed class UserRoleRemoveCommand : UserRoleCommandBase
+{
+    private readonly ILogger<UserRoleRemoveCommand> log;
+
+    public UserRoleRemoveCommand(ILogger<UserRoleRemoveCommand> log)
+    {
+        this.log = log;
+    }
+
+    public override ValueTask ExecuteAsync(CommandContext context)
+    {
+        log.LogInformation("Remove role '{Role}' to user '{Username}'", Role, Username);
+        return ValueTask.CompletedTask;
+    }
+}
