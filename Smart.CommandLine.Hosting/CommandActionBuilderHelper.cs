@@ -6,6 +6,13 @@ using System.Reflection;
 
 internal static class CommandActionBuilderHelper
 {
+    private static readonly MethodInfo GetValueMethod = typeof(ParseResult)
+        .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+        .First(x => x is { Name: nameof(ParseResult.GetValue), IsGenericMethodDefinition: true } &&
+                    (x.GetParameters().Length == 1) &&
+                    x.GetParameters()[0].ParameterType.IsGenericType &&
+                    x.GetParameters()[0].ParameterType.GetGenericTypeDefinition() == typeof(Option<>));
+
     public static Action<CommandActionBuilderContext> CreateReflectionBasedDelegate(Type type)
     {
         return context =>
@@ -80,17 +87,17 @@ internal static class CommandActionBuilderHelper
 
     private static void SetDefaultValueFactory(Option option, Type propertyType, object? value)
     {
-        var defaultValueFactoryProperty = option.GetType().GetProperty("DefaultValueFactory");
+        var defaultValueFactoryProperty = option.GetType().GetProperty(nameof(Option<>.DefaultValueFactory));
         if (defaultValueFactoryProperty is null)
         {
             return;
         }
 
         // Create default value factory delegate
-        var method = typeof(CommandActionBuilderHelper)
+        var factoryCreateMethod = typeof(CommandActionBuilderHelper)
             .GetMethod(nameof(CreateDefaultValueFactory), BindingFlags.NonPublic | BindingFlags.Static)!
             .MakeGenericMethod(propertyType);
-        var factoryDelegate = method.Invoke(null, [value]);
+        var factoryDelegate = factoryCreateMethod.Invoke(null, [value]);
 
         defaultValueFactoryProperty.SetValue(option, factoryDelegate);
     }
@@ -102,13 +109,10 @@ internal static class CommandActionBuilderHelper
 
     private static void SetOptionValue(ICommand command, ParseResult parseResult, PropertyInfo property, Option option)
     {
-        var getValueMethod = typeof(ParseResult).GetMethod(nameof(ParseResult.GetValue), [option.GetType()]);
-        if (getValueMethod is null)
-        {
-            return;
-        }
+        var genericMethod = GetValueMethod.MakeGenericMethod(property.PropertyType);
 
-        var value = getValueMethod.Invoke(parseResult, [option]);
+        // Invoke and set value
+        var value = genericMethod.Invoke(parseResult, [option]);
         property.SetValue(command, value);
     }
 }
