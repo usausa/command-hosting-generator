@@ -3,7 +3,7 @@ namespace Smart.CommandLine.Hosting;
 
 public sealed class FilterPipelineTests
 {
-    private sealed class TestCommand : ICommand
+    private sealed class TestCommand : ICommandHandler
     {
         public bool Executed { get; private set; }
 
@@ -60,7 +60,7 @@ public sealed class FilterPipelineTests
     }
 
     [Filter<GlobalFilter1>(Order = 10)]
-    private sealed class CommandWithFilter : ICommand
+    private sealed class CommandWithFilter : ICommandHandler
     {
         public ValueTask ExecuteAsync(CommandContext context)
         {
@@ -71,7 +71,7 @@ public sealed class FilterPipelineTests
 
     [Filter<GlobalFilter1>(Order = 5)]
     [Filter<GlobalFilter2>(Order = 15)]
-    private sealed class CommandWithMultipleFilters : ICommand
+    private sealed class CommandWithMultipleFilters : ICommandHandler
     {
         public ValueTask ExecuteAsync(CommandContext context)
         {

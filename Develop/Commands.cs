@@ -110,7 +110,7 @@ public sealed class LoggingFilter : ICommandFilter
 //--------------------------------------------------------------------------------
 
 [Command("message", Description = "Basic usage")]
-public sealed class MessageCommand : ICommand
+public sealed class MessageCommand : ICommandHandler
 {
     private readonly ILogger<MessageCommand> log;
 
@@ -130,7 +130,7 @@ public sealed class MessageCommand : ICommand
 }
 
 [Command("greet", Description = "DI service")]
-public sealed class GreetCommand : ICommand
+public sealed class GreetCommand : ICommandHandler
 {
     private readonly GreetService greetService;
 
@@ -160,7 +160,7 @@ public sealed class GreetCommand : ICommand
 
 [Filter<LoggingFilter>]
 [Command("filter", Description = "Filter test")]
-public sealed class FilterCommand : ICommand
+public sealed class FilterCommand : ICommandHandler
 {
     private readonly ILogger<FilterCommand> log;
 
@@ -183,7 +183,7 @@ public sealed class FilterCommand : ICommand
 }
 
 [Command("exception", Description = "Exception testt")]
-public sealed class ExceptionCommand : ICommand
+public sealed class ExceptionCommand : ICommandHandler
 {
     public ValueTask ExecuteAsync(CommandContext context)
     {

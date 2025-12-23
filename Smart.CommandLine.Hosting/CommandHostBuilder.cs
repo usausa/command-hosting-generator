@@ -148,7 +148,7 @@ internal sealed class CommandHostBuilder : ICommandHostBuilder
         var command = new Command(attribute.Name, attribute.Description);
 
         // Build executable command
-        if (typeof(ICommand).IsAssignableFrom(descriptor.CommandType))
+        if (typeof(ICommandHandler).IsAssignableFrom(descriptor.CommandType))
         {
             // Build command
             var actionBuilder = descriptor.ActionBuilder ?? CommandActionBuilderHelper.CreateReflectionBasedDelegate(descriptor.CommandType);
@@ -167,10 +167,10 @@ internal sealed class CommandHostBuilder : ICommandHostBuilder
 
             command.SetAction(async (parseResult, token) =>
             {
-                var commandInstance = (ICommand)ActivatorUtilities.CreateInstance(serviceProvider, descriptor.CommandType);
-                var commandContext = new CommandContext(descriptor.CommandType, commandInstance, token);
+                var handler = (ICommandHandler)ActivatorUtilities.CreateInstance(serviceProvider, descriptor.CommandType);
+                var commandContext = new CommandContext(descriptor.CommandType, handler, token);
 
-                await filterPipeline.ExecuteAsync(commandContext, ctx => operation(commandInstance, parseResult, ctx)).ConfigureAwait(false);
+                await filterPipeline.ExecuteAsync(commandContext, ctx => operation(handler, parseResult, ctx)).ConfigureAwait(false);
 
                 return commandContext.ExitCode;
             });
@@ -254,7 +254,7 @@ internal sealed class CommandBuilder : ICommandBuilder
     public ICommandBuilder AddCommand<TCommand>(Action<CommandActionBuilderContext>? builder, Action<ISubCommandBuilder>? configure = null)
         where TCommand : class
     {
-        if (typeof(ICommand).IsAssignableFrom(typeof(TCommand)))
+        if (typeof(ICommandHandler).IsAssignableFrom(typeof(TCommand)))
         {
             services.AddTransient<TCommand>();
         }
@@ -388,7 +388,7 @@ internal sealed class SubCommandBuilder : ISubCommandBuilder
     public ISubCommandBuilder AddSubCommand<TCommand>(Action<CommandActionBuilderContext>? builder, Action<ISubCommandBuilder>? configure = null)
         where TCommand : class
     {
-        if (typeof(ICommand).IsAssignableFrom(typeof(TCommand)))
+        if (typeof(ICommandHandler).IsAssignableFrom(typeof(TCommand)))
         {
             services.AddTransient<TCommand>();
         }

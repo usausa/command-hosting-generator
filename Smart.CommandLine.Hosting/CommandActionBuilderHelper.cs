@@ -109,12 +109,12 @@ internal static class CommandActionBuilderHelper
         return _ => (T)value!;
     }
 
-    private static void SetOptionValue(ICommand command, ParseResult parseResult, PropertyInfo property, Option option)
+    private static void SetOptionValue(ICommandHandler handler, ParseResult parseResult, PropertyInfo property, Option option)
     {
         var genericMethod = GetValueMethod.MakeGenericMethod(property.PropertyType);
 
         // Invoke and set value
         var value = genericMethod.Invoke(parseResult, [option]);
-        property.SetValue(command, value);
+        property.SetValue(handler, value);
     }
 }

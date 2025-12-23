@@ -5,7 +5,7 @@ using System.CommandLine;
 // ReSharper disable once UnusedType.Global
 #pragma warning disable CA1711
 public delegate ValueTask CommandActionDelegate(
-    ICommand command,
+    ICommandHandler command,
     ParseResult parseResult,
     CommandContext commandContext);
 #pragma warning disable CA1711

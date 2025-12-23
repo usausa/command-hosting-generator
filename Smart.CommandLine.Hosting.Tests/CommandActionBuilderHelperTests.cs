@@ -7,7 +7,7 @@ using System.CommandLine;
 
 public sealed class CommandActionBuilderHelperTests
 {
-    private sealed class SimpleCommand : ICommand
+    private sealed class SimpleCommand : ICommandHandler
     {
         [Option("--name")]
         public string Name { get; set; } = default!;
@@ -25,7 +25,7 @@ public sealed class CommandActionBuilderHelperTests
     }
 
 #pragma warning disable CA1812
-    private sealed class CommandWithRequired : ICommand
+    private sealed class CommandWithRequired : ICommandHandler
     {
         [Option("--required", IsRequired = true)]
         public string Required { get; set; } = default!;
@@ -34,7 +34,7 @@ public sealed class CommandActionBuilderHelperTests
     }
 #pragma warning restore CA1812
 
-    private sealed class CommandWithDefaultValue : ICommand
+    private sealed class CommandWithDefaultValue : ICommandHandler
     {
         [Option<int>("--count", DefaultValue = 10)]
         public int Count { get; set; }
@@ -45,7 +45,7 @@ public sealed class CommandActionBuilderHelperTests
         public ValueTask ExecuteAsync(CommandContext context) => ValueTask.CompletedTask;
     }
 
-    private sealed class CommandWithDescription : ICommand
+    private sealed class CommandWithDescription : ICommandHandler
     {
         [Option("--verbose", Description = "Enable verbose output")]
         public bool Verbose { get; set; }
@@ -53,7 +53,7 @@ public sealed class CommandActionBuilderHelperTests
         public ValueTask ExecuteAsync(CommandContext context) => ValueTask.CompletedTask;
     }
 
-    private sealed class CommandWithAliases : ICommand
+    private sealed class CommandWithAliases : ICommandHandler
     {
         [Option("--name", "-n", "--full-name")]
         public string Name { get; set; } = default!;
@@ -62,7 +62,7 @@ public sealed class CommandActionBuilderHelperTests
     }
 
 #pragma warning disable CA1812
-    private sealed class CommandWithMultipleOptions : ICommand
+    private sealed class CommandWithMultipleOptions : ICommandHandler
     {
         [Option("--name")]
         public string Name { get; set; } = default!;
@@ -76,7 +76,7 @@ public sealed class CommandActionBuilderHelperTests
         public ValueTask ExecuteAsync(CommandContext context) => ValueTask.CompletedTask;
     }
 
-    private sealed class CommandWithNullableType : ICommand
+    private sealed class CommandWithNullableType : ICommandHandler
     {
         [Option("--value")]
         public int? Value { get; set; }
@@ -85,7 +85,7 @@ public sealed class CommandActionBuilderHelperTests
     }
 #pragma warning restore CA1812
 
-    private sealed class CommandWithoutOptions : ICommand
+    private sealed class CommandWithoutOptions : ICommandHandler
     {
         public bool Executed { get; private set; }
 

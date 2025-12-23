@@ -13,13 +13,13 @@ public sealed class CommandContext
 
     public Type CommandType { get; }
 
-    public ICommand Command { get; }
+    public ICommandHandler Command { get; }
 
     public CancellationToken CancellationToken { get; }
 
     public int ExitCode { get; set; }
 
-    public CommandContext(Type commandType, ICommand command, CancellationToken cancellationToken)
+    public CommandContext(Type commandType, ICommandHandler command, CancellationToken cancellationToken)
     {
         CommandType = commandType;
         Command = command;

@@ -1,6 +1,6 @@
 namespace Smart.CommandLine.Hosting;
 
-public interface ICommand
+public interface ICommandHandler
 {
     ValueTask ExecuteAsync(CommandContext context);
 }
