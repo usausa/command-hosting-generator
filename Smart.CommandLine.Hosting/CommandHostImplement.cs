@@ -10,6 +10,8 @@ internal sealed class CommandHostImplement : ICommandHost
 
     private readonly IServiceProvider serviceProvider;
 
+    public IServiceProvider Services => serviceProvider;
+
     public CommandHostImplement(string[] args, RootCommand rootCommand, IServiceProvider serviceProvider)
     {
         this.args = args;
