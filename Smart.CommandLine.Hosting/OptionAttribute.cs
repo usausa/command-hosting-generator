@@ -22,18 +22,19 @@ public interface IOptionAttribute
 [AttributeUsage(AttributeTargets.Property)]
 public abstract class BaseOptionAttribute : Attribute, IOptionAttribute
 {
+    public int Order { get; }
+
     public string Name { get; }
 
     public string[] Aliases { get; }
-
-    public int Order { get; set; }
 
     public string? Description { get; set; }
 
     public bool Required { get; set; }
 
-    protected BaseOptionAttribute(string name, string[] aliases)
+    protected BaseOptionAttribute(int order, string name, string[] aliases)
     {
+        Order = order;
         Name = name;
         Aliases = aliases;
     }
@@ -64,7 +65,12 @@ public sealed class OptionAttribute : BaseOptionAttribute
     public string[]? Completions { get; set; }
 
     public OptionAttribute(string name, params string[] aliases)
-        : base(name, aliases)
+        : base(Int32.MaxValue, name, aliases)
+    {
+    }
+
+    public OptionAttribute(int order, string name, params string[] aliases)
+        : base(order, name, aliases)
     {
     }
 
@@ -80,7 +86,12 @@ public sealed class OptionAttribute<T> : BaseOptionAttribute
     public T[]? Completions { get; set; }
 
     public OptionAttribute(string name, params string[] aliases)
-        : base(name, aliases)
+        : base(Int32.MaxValue, name, aliases)
+    {
+    }
+
+    public OptionAttribute(int order, string name, params string[] aliases)
+        : base(order, name, aliases)
     {
     }
 
