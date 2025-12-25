@@ -42,18 +42,18 @@ internal static class CommandActionBuilderHelper
 
                 option.Required = attribute.GetRequired();
 
-                // Set completion sources
-                var completions = attribute.GetCompletions();
-                if (completions.Length > 0)
-                {
-                    SetCompletionSources(option, completions);
-                }
-
                 // Set default value factory
                 var defaultValue = GetDefaultValue(property, attribute);
                 if (defaultValue.HasValue)
                 {
                     SetDefaultValueFactory(option, property.PropertyType, defaultValue.Value);
+                }
+
+                // Set completion sources
+                var completions = attribute.GetCompletions();
+                if (completions.Length > 0)
+                {
+                    SetCompletionSources(option, completions);
                 }
 
                 // Add to context
@@ -118,25 +118,20 @@ internal static class CommandActionBuilderHelper
 
     private static void SetCompletionSources(Option option, string[] completions)
     {
-        // Skip if no completions
         if (completions.Length == 0)
         {
             return;
         }
 
         var completionSourcesProperty = option.GetType().GetProperty("CompletionSources", BindingFlags.Public | BindingFlags.Instance);
-        if (completionSourcesProperty is not null)
+        var completionSources = completionSourcesProperty?.GetValue(option);
+        if (completionSources is null)
         {
-            var completionSources = completionSourcesProperty.GetValue(option);
-            if (completionSources is not null)
-            {
-                var addMethod = completionSources.GetType().GetMethod("Add", BindingFlags.Public | BindingFlags.Instance, null, [typeof(string[])], null);
-                if (addMethod is not null)
-                {
-                    addMethod.Invoke(completionSources, [completions]);
-                }
-            }
+            return;
         }
+
+        var addMethod = completionSources.GetType().GetMethod("Add", BindingFlags.Public | BindingFlags.Instance, null, [typeof(string[])], null);
+        addMethod?.Invoke(completionSources, [completions]);
     }
 
     private static void SetOptionValue(ICommandHandler handler, ParseResult parseResult, PropertyInfo property, Option option)
