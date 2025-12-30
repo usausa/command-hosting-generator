@@ -1,16 +1,17 @@
-using Smart.CommandLine.Hosting.Generator.Models;
-
 namespace Smart.CommandLine.Hosting.Generator;
+
+using System.Collections.Immutable;
+using System.Text;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.Text;
+
+using Smart.CommandLine.Hosting.Generator.Models;
+
 using SourceGenerateHelper;
-using System.Collections.Immutable;
-using System.Text;
-using static Microsoft.CodeAnalysis.CSharp.SyntaxTokenParser;
 
 [Generator]
 public sealed class CommandGenerator : IIncrementalGenerator
@@ -107,7 +108,6 @@ public sealed class CommandGenerator : IIncrementalGenerator
     private static Result<InvocationModel>? GetInvocationModel(GeneratorSyntaxContext context)
     {
         var invocation = (InvocationExpressionSyntax)context.Node;
-
         if (context.SemanticModel.GetOperation(invocation) is not IInvocationOperation operation)
         {
             return null;
@@ -123,19 +123,16 @@ public sealed class CommandGenerator : IIncrementalGenerator
         }
 
         // Check containing type
-        var containingType = method.OriginalDefinition.ContainingType;
-        if ((containingType.ToDisplayString() != CommandBuilderFullName) &&
-            (containingType.ToDisplayString() != SubCommandBuilderFullName) &&
-            (containingType.ToDisplayString() != RootCommandBuilderFullName))
+        var containingTypeName = method.OriginalDefinition.ContainingType.ToDisplayString();
+        if ((containingTypeName != CommandBuilderFullName) &&
+            (containingTypeName != SubCommandBuilderFullName) &&
+            (containingTypeName != RootCommandBuilderFullName))
         {
             return null;
         }
 
         // Get type argument
         var typeArgument = method.TypeArguments[0];
-
-        // Get receiver type
-        var receiverType = operation.Instance?.Type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? string.Empty;
 
         // Extract command metadata
         var commandInfo = ExtractCommandMetadata(typeArgument);
@@ -148,9 +145,6 @@ public sealed class CommandGenerator : IIncrementalGenerator
 
         return Results.Success(new InvocationModel(
             typeArgument.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-            typeArgument.Name,
-            receiverType,
-            method.Name,
             commandInfo,
             filters,
             options));
@@ -177,7 +171,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
         return new CommandMetadata(name, description);
     }
 
-    private static ImmutableArray<FilterMetadata> ExtractFilterMetadata(ITypeSymbol typeSymbol)
+    private static EquatableArray<FilterMetadata> ExtractFilterMetadata(ITypeSymbol typeSymbol)
     {
         var filters = new List<FilterMetadata>();
 
@@ -217,7 +211,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
 
             // Get TFilter type (from generic argument)
             string? filterType = null;
-            if (attribute.AttributeClass is INamedTypeSymbol { IsGenericType: true } namedType &&
+            if (attribute.AttributeClass is { IsGenericType: true } namedType &&
                 namedType.TypeArguments.Length > 0)
             {
                 filterType = namedType.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
@@ -229,10 +223,10 @@ public sealed class CommandGenerator : IIncrementalGenerator
             }
         }
 
-        return filters.ToImmutableArray();
+        return new EquatableArray<FilterMetadata>(filters.ToArray());
     }
 
-    private static ImmutableArray<OptionMetadata> ExtractOptionMetadata(ITypeSymbol typeSymbol)
+    private static EquatableArray<OptionMetadata> ExtractOptionMetadata(ITypeSymbol typeSymbol)
     {
         var options = new List<OptionMetadata>();
 
@@ -277,11 +271,11 @@ public sealed class CommandGenerator : IIncrementalGenerator
                     // Extract option information
                     var order = int.MaxValue;
                     var name = string.Empty;
-                    var aliases = ImmutableArray<string>.Empty;
+                    var aliases = Array.Empty<string>();
                     string? description = null;
                     var required = false;
                     object? defaultValue = null;
-                    ImmutableArray<string> completions = ImmutableArray<string>.Empty;
+                    var completions = Array.Empty<string>();
 
                     // Constructor arguments: order, name, aliases
                     if (attribute.ConstructorArguments.Length >= 2)
@@ -322,12 +316,12 @@ public sealed class CommandGenerator : IIncrementalGenerator
                                 break;
                             case "Completions":
                                 // Get generic type argument if attribute is OptionAttribute<T>
-                                ITypeSymbol? genericTypeArgument = null;
-                                if (attribute.AttributeClass is INamedTypeSymbol { IsGenericType: true } namedType &&
-                                    namedType.TypeArguments.Length > 0)
-                                {
-                                    genericTypeArgument = namedType.TypeArguments[0];
-                                }
+                                //ITypeSymbol? genericTypeArgument = null;
+                                //if (attribute.AttributeClass is { IsGenericType: true } namedType &&
+                                //    namedType.TypeArguments.Length > 0)
+                                //{
+                                //    genericTypeArgument = namedType.TypeArguments[0];
+                                //}
 
                                 // Get the syntax node for the attribute
                                 if (attribute.ApplicationSyntaxReference?.GetSyntax() is AttributeSyntax attributeSyntax &&
@@ -337,7 +331,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
                                     {
                                         if (argument.NameEquals?.Name.Identifier.Text == "Completions")
                                         {
-                                            completions = ExtractCompletionsPropertyFromSyntax(argument.Expression, genericTypeArgument);
+                                            completions = ExtractCompletionsPropertyFromSyntax(argument.Expression);
                                             break;
                                         }
                                     }
@@ -346,17 +340,21 @@ public sealed class CommandGenerator : IIncrementalGenerator
                         }
                     }
 
+                    // Get property type
+                    var propertyType = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
                     options.Add(new OptionMetadata(
                         property.Name,
+                        propertyType,
                         order,
                         hierarchyLevel,
                         propertyIndex,
                         name,
-                        aliases,
+                        new EquatableArray<string>(aliases),
                         description,
                         required,
                         defaultValue,
-                        completions));
+                        new EquatableArray<string>(completions)));
 
                     propertyIndex++;
                 }
@@ -366,14 +364,14 @@ public sealed class CommandGenerator : IIncrementalGenerator
             hierarchyLevel--;
         }
 
-        return options.ToImmutableArray();
+        return new EquatableArray<OptionMetadata>(options.ToArray());
     }
 
-    private static ImmutableArray<string> ExtractStringArray(TypedConstant arrayConstant)
+    private static string[] ExtractStringArray(TypedConstant arrayConstant)
     {
         if (arrayConstant is { Kind: TypedConstantKind.Array, Values.IsEmpty: false })
         {
-            var result = ImmutableArray.CreateBuilder<string>();
+            var result = new List<string>();
 
             foreach (var element in arrayConstant.Values)
             {
@@ -383,15 +381,15 @@ public sealed class CommandGenerator : IIncrementalGenerator
                 }
             }
 
-            return result.ToImmutable();
+            return result.ToArray();
         }
 
-        return ImmutableArray<string>.Empty;
+        return [];
     }
 
-    private static ImmutableArray<string> ExtractCompletionsPropertyFromSyntax(ExpressionSyntax expression, ITypeSymbol? genericTypeArgument)
+    private static string[] ExtractCompletionsPropertyFromSyntax(ExpressionSyntax expression)
     {
-        var completions = ImmutableArray.CreateBuilder<string>();
+        var completions = new List<string>();
 
         // Check for implicit array creation: new[] { ... }
         if (expression is ImplicitArrayCreationExpressionSyntax arrayCreation)
@@ -415,7 +413,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
             }
         }
 
-        return completions.Count > 0 ? completions.ToImmutable() : ImmutableArray<string>.Empty;
+        return completions.ToArray();
     }
 
     // ------------------------------------------------------------
@@ -424,10 +422,21 @@ public sealed class CommandGenerator : IIncrementalGenerator
 
     private static void Execute(SourceProductionContext context, ImmutableArray<Result<InvocationModel>> invocations)
     {
-        foreach (var info in invocations.SelectError())
-        {
-            context.ReportDiagnostic(info);
-        }
+        //var successfulInvocations = new List<InvocationModel>();
+
+        //foreach (var result in invocations)
+        //{
+        //    if (result.Value is not null)
+        //    {
+        //        successfulInvocations.Add(result.Value);
+        //    }
+        //    else if (result.Error is not null)
+        //    {
+        //        context.ReportDiagnostic(result.Error);
+        //    }
+        //}
+
+        var successfulInvocations = invocations.SelectValue().ToList();
 
         // Build initializer source
         var builder = new SourceBuilder();
@@ -454,8 +463,58 @@ public sealed class CommandGenerator : IIncrementalGenerator
             .NewLine();
         builder.BeginScope();
 
-        // TODO
+        // Generate metadata registration for each invocation
+        foreach (var invocation in successfulInvocations)
+        {
+            // AddCommandMetadata
+            if (invocation.CommandInfo is not null)
+            {
+                builder
+                    .Indent()
+                    .Append("global::Smart.CommandLine.Hosting.CommandMetadataProvider.AddCommandMetadata<")
+                    .Append(invocation.TypeFullName)
+                    .Append(">(");
+                builder
+                    .Append('"')
+                    .Append(invocation.CommandInfo.Name)
+                    .Append('"');
+                if (!string.IsNullOrEmpty(invocation.CommandInfo.Description))
+                {
+                    builder
+                        .Append(", ")
+                        .Append('"')
+                        .Append(invocation.CommandInfo.Description!)
+                        .Append('"');
+                }
+                builder
+                    .Append(");")
+                    .NewLine();
+            }
 
+            // AddFilterDescriptor
+            foreach (var filter in invocation.Filters.ToArray())
+            {
+                builder
+                    .Indent()
+                    .Append("global::Smart.CommandLine.Hosting.CommandMetadataProvider.AddFilterDescriptor<")
+                    .Append(invocation.TypeFullName)
+                    .Append(", ")
+                    .Append(filter.FilterType)
+                    .Append(">(")
+                    .Append($"{filter.Order}")
+                    .Append(");")
+                    .NewLine();
+            }
+
+            // AddActionBuilder
+            var options = invocation.Options.ToArray();
+            if (options.Length > 0)
+            {
+                GenerateActionBuilder(builder, invocation);
+            }
+
+            builder.NewLine();
+        }
 
         builder.EndScope();
 
@@ -466,18 +525,256 @@ public sealed class CommandGenerator : IIncrementalGenerator
             SourceText.From(builder.ToString(), Encoding.UTF8));
     }
 
+    private static void GenerateActionBuilder(SourceBuilder builder, InvocationModel invocation)
+    {
+        // Sort options by Order, HierarchyLevel, PropertyIndex
+        var sortedOptions = invocation.Options.ToArray()
+            .OrderBy(o => o.Order)
+            .ThenBy(o => o.HierarchyLevel)
+            .ThenBy(o => o.PropertyIndex)
+            .ToList();
+
+        builder
+            .Indent()
+            .Append("global::Smart.CommandLine.Hosting.CommandMetadataProvider.AddActionBuilder<")
+            .Append(invocation.TypeFullName)
+            .Append(">(context =>")
+            .NewLine();
+        builder
+            .Indent()
+            .Append("{")
+            .NewLine();
+
+        // Generate option variables
+        for (var i = 0; i < sortedOptions.Count; i++)
+        {
+            var option = sortedOptions[i];
+            var optionVar = $"option{i + 1}";
+
+            builder
+                .Indent()
+                .Indent()
+                .Append("var ")
+                .Append(optionVar)
+                .Append(" = new global::System.CommandLine.Option<")
+                .Append(option.PropertyType)
+                .Append(">(\"")
+                .Append(option.Name)
+                .Append("\"");
+
+            // Add aliases
+            var aliases = option.Aliases.ToArray();
+            if (aliases.Length > 0)
+            {
+                foreach (var alias in aliases)
+                {
+                    builder
+                        .Append(", \"")
+                        .Append(alias)
+                        .Append("\"");
+                }
+            }
+
+            builder
+                .Append(");")
+                .NewLine();
+
+            // Set description
+            if (!string.IsNullOrEmpty(option.Description))
+            {
+                builder
+                    .Indent()
+                    .Indent()
+                    .Append(optionVar)
+                    .Append(".Description = \"")
+                    .Append(option.Description!)
+                    .Append("\";")
+                    .NewLine();
+            }
+
+            // Set required
+            if (option.Required)
+            {
+                builder
+                    .Indent()
+                    .Indent()
+                    .Append(optionVar)
+                    .Append(".Required = true;")
+                    .NewLine();
+            }
+
+            // Set default value
+            if (option.DefaultValue is not null)
+            {
+                builder
+                    .Indent()
+                    .Indent()
+                    .Append(optionVar)
+                    .Append(".DefaultValueFactory = _ => ");
+                GenerateDefaultValue(builder, option.DefaultValue);
+                builder
+                    .Append(";")
+                    .NewLine();
+            }
+
+            // Set completions
+            var completions = option.Completions.ToArray();
+            if (completions.Length > 0)
+            {
+                builder
+                    .Indent()
+                    .Indent()
+                    .Append(optionVar)
+                    .Append(".CompletionSources.Add(new string[] { ");
+                for (var j = 0; j < completions.Length; j++)
+                {
+                    if (j > 0)
+                    {
+                        builder.Append(", ");
+                    }
+                    builder.Append(completions[j]);
+                }
+                builder
+                    .Append(" });")
+                    .NewLine();
+            }
+
+            // Add option to context
+            builder
+                .Indent()
+                .Indent()
+                .Append("context.AddOption(")
+                .Append(optionVar)
+                .Append(");")
+                .NewLine();
+
+            if (i < sortedOptions.Count - 1)
+            {
+                builder.NewLine();
+            }
+        }
+
+        builder.NewLine();
+
+        // Generate Operation
+        builder
+            .Indent()
+            .Indent()
+            .Append("context.Operation = (command, result, commandContext) =>")
+            .NewLine();
+        builder
+            .Indent()
+            .Indent()
+            .Append("{")
+            .NewLine();
+
+        builder
+            .Indent()
+            .Indent()
+            .Indent()
+            .Append("var target = (")
+            .Append(invocation.TypeFullName)
+            .Append(")commandContext.Command;")
+            .NewLine();
+
+        if (sortedOptions.Count > 0)
+        {
+            builder.NewLine();
+        }
+
+        // Set property values
+        for (var i = 0; i < sortedOptions.Count; i++)
+        {
+            var option = sortedOptions[i];
+            var optionVar = $"option{i + 1}";
+
+            builder
+                .Indent()
+                .Indent()
+                .Indent()
+                .Append("target.")
+                .Append(option.PropertyName)
+                .Append(" = result.GetValue(")
+                .Append(optionVar)
+                .Append(")!;")
+                .NewLine();
+        }
+
+        if (sortedOptions.Count > 0)
+        {
+            builder.NewLine();
+        }
+
+        // Execute command
+        builder
+            .Indent()
+            .Indent()
+            .Indent()
+            .Append("return command.ExecuteAsync(commandContext);")
+            .NewLine();
+
+        builder
+            .Indent()
+            .Indent()
+            .Append("};")
+            .NewLine();
+
+        builder
+            .Indent()
+            .Append("});")
+            .NewLine();
+    }
+
+    // TODO 削除
+    private static void GenerateDefaultValue(SourceBuilder builder, object? defaultValue)
+    {
+        if (defaultValue is null)
+        {
+            builder.Append("default!");
+            return;
+        }
+
+        switch (defaultValue)
+        {
+            case string str:
+                builder
+                    .Append("\"")
+                    .Append(str)
+                    .Append("\"");
+                break;
+            case bool b:
+                builder.Append(b ? "true" : "false");
+                break;
+            case int i:
+                builder.Append(i.ToString());
+                break;
+            case long l:
+                builder.Append(l.ToString()).Append("L");
+                break;
+            case float f:
+                builder.Append(f.ToString()).Append("f");
+                break;
+            case double d:
+                builder.Append(d.ToString()).Append("d");
+                break;
+            case decimal m:
+                builder.Append(m.ToString()).Append("m");
+                break;
+            default:
+                builder.Append("default!");
+                break;
+        }
+    }
+
     // ------------------------------------------------------------
     // Models
     // ------------------------------------------------------------
 
     internal sealed record InvocationModel(
         string TypeFullName,
-        string TypeName,
-        string ReceiverType,
-        string MethodName,
         CommandMetadata? CommandInfo,
-        ImmutableArray<FilterMetadata> Filters,
-        ImmutableArray<OptionMetadata> Options);
+        EquatableArray<FilterMetadata> Filters,
+        EquatableArray<OptionMetadata> Options);
 
     internal sealed record CommandMetadata(
         string Name,
@@ -489,13 +786,14 @@ public sealed class CommandGenerator : IIncrementalGenerator
 
     internal sealed record OptionMetadata(
         string PropertyName,
+        string PropertyType,
         int Order,
         int HierarchyLevel,
         int PropertyIndex,
         string Name,
-        ImmutableArray<string> Aliases,
+        EquatableArray<string> Aliases,
         string? Description,
         bool Required,
         object? DefaultValue,
-        ImmutableArray<string> Completions);
+        EquatableArray<string> Completions);
 }
