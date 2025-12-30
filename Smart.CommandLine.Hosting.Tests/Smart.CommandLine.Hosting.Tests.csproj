@@ -25,7 +25,7 @@
     <TemplateLibraryGeneratorValue>test</TemplateLibraryGeneratorValue>
   </PropertyGroup>
 
-  <Import Project="..\Smart.CommandLine.Hosting.props" />
+  <Import Project="..\Usa.Smart.CommandLine.Hosting.props" />
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
