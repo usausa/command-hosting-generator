@@ -111,6 +111,7 @@ internal sealed class CommandHostBuilder : ICommandHostBuilder
 
         if (rootDescriptor is not null)
         {
+            // TODO Generator based
             foreach (var attribute in rootDescriptor.CommandType.GetCustomAttributes<FilterAttribute>())
             {
                 filterTypes.Add(attribute.FilterType);
@@ -119,6 +120,7 @@ internal sealed class CommandHostBuilder : ICommandHostBuilder
 
         foreach (var descriptor in commandDescriptors)
         {
+            // TODO Generator based
             foreach (var attribute in descriptor.CommandType.GetCustomAttributes<FilterAttribute>())
             {
                 filterTypes.Add(attribute.FilterType);
@@ -157,6 +159,7 @@ internal sealed class CommandHostBuilder : ICommandHostBuilder
 
     private static Command CreateCommand(IServiceProvider serviceProvider, FilterCollection globalFilters, CommandDescriptor descriptor)
     {
+        // TODO Generator based
         // Create command
         var attribute = descriptor.CommandType.GetCustomAttribute<CommandAttribute>()!;
         var command = new Command(attribute.Name, attribute.Description);
