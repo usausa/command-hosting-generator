@@ -29,6 +29,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
     private const string CommandAttributeFullName = "Smart.CommandLine.Hosting.CommandAttribute";
     private const string FilterAttributeFullName = "Smart.CommandLine.Hosting.FilterAttribute";
     private const string BaseOptionAttributeFullName = "Smart.CommandLine.Hosting.BaseOptionAttribute";
+    private const string CommandHandlerFullName = "Smart.CommandLine.Hosting.ICommandHandler";
 
     private const string DescriptionPropertyName = "Description";
     private const string RequiredPropertyName = "Required";
@@ -143,14 +144,21 @@ public sealed class CommandGenerator : IIncrementalGenerator
             return null;
         }
 
+        var isImplementsHandler = IsImplementsHandler(typeArgument);
         var filters = ExtractFilterModels(typeArgument);
         var options = ExtractOptionModels(typeArgument);
 
         return new InvocationModel(
             typeArgument.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            isImplementsHandler,
             command,
             filters,
             options);
+    }
+
+    private static bool IsImplementsHandler(ITypeSymbol typeSymbol)
+    {
+        return typeSymbol.AllInterfaces.Any(static x => x.ToDisplayString() == CommandHandlerFullName);
     }
 
     private static EquatableArray<FilterModel> ExtractFilterModels(ITypeSymbol typeSymbol)
@@ -208,7 +216,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
     private static CommandModel? ExtractCommandModel(ITypeSymbol typeSymbol)
     {
         var attribute = typeSymbol.GetAttributes()
-            .FirstOrDefault(x => x.AttributeClass?.ToDisplayString() == CommandAttributeFullName);
+            .FirstOrDefault(static x => x.AttributeClass?.ToDisplayString() == CommandAttributeFullName);
         if (attribute is null)
         {
             return null;
@@ -487,8 +495,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
             }
 
             // AddActionBuilder
-            var options = invocation.Options.ToArray();
-            if (options.Length > 0)
+            if (invocation.ImplementsHandler)
             {
                 GenerateActionBuilder(builder, invocation);
             }
@@ -500,39 +507,36 @@ public sealed class CommandGenerator : IIncrementalGenerator
 
         builder.EndScope();
 
-        context.AddSource(
-            "CommandInitializer.g.cs",
-            SourceText.From(builder.ToString(), Encoding.UTF8));
+        // Add source
+        context.AddSource("CommandInitializer.g.cs", SourceText.From(builder.ToString(), Encoding.UTF8));
     }
 
     private static void GenerateActionBuilder(SourceBuilder builder, InvocationModel invocation)
     {
-        // Sort options by Order, HierarchyLevel, PropertyIndex
-        var sortedOptions = invocation.Options.ToArray()
-            .OrderBy(o => o.Order)
-            .ThenBy(o => o.HierarchyLevel)
-            .ThenBy(o => o.PropertyIndex)
-            .ToList();
+        var options = invocation.Options.ToArray();
+        var sortedOptions = options.Length > 0
+            ? options.OrderBy(static x => x.Order).ThenBy(static x => x.HierarchyLevel).ThenBy(static x => x.PropertyIndex).ToList()
+            : [];
 
         builder
             .Indent()
             .Append("global::Smart.CommandLine.Hosting.CommandMetadataProvider.AddActionBuilder<")
             .Append(invocation.TypeFullName)
-            .Append(">(context =>")
+            .Append(">(static context =>")
             .NewLine();
         builder
             .Indent()
             .Append("{")
             .NewLine();
+        builder.IndentLevel++;
 
         // Generate option variables
         for (var i = 0; i < sortedOptions.Count; i++)
         {
             var option = sortedOptions[i];
-            var optionVar = $"option{i + 1}";
+            var optionVar = $"option{i}";
 
             builder
-                .Indent()
                 .Indent()
                 .Append("var ")
                 .Append(optionVar)
@@ -564,7 +568,6 @@ public sealed class CommandGenerator : IIncrementalGenerator
             {
                 builder
                     .Indent()
-                    .Indent()
                     .Append(optionVar)
                     .Append(".Description = \"")
                     .Append(option.Description!)
@@ -577,7 +580,6 @@ public sealed class CommandGenerator : IIncrementalGenerator
             {
                 builder
                     .Indent()
-                    .Indent()
                     .Append(optionVar)
                     .Append(".Required = true;")
                     .NewLine();
@@ -588,9 +590,8 @@ public sealed class CommandGenerator : IIncrementalGenerator
             {
                 builder
                     .Indent()
-                    .Indent()
                     .Append(optionVar)
-                    .Append(".DefaultValueFactory = _ => ")
+                    .Append(".DefaultValueFactory = static _ => ")
                     .Append(option.DefaultValue)
                     .Append(";")
                     .NewLine();
@@ -602,9 +603,8 @@ public sealed class CommandGenerator : IIncrementalGenerator
             {
                 builder
                     .Indent()
-                    .Indent()
                     .Append(optionVar)
-                    .Append(".CompletionSources.Add(new string[] { ");
+                    .Append(".CompletionSources.Add([");
                 for (var j = 0; j < completions.Length; j++)
                 {
                     if (j > 0)
@@ -614,13 +614,12 @@ public sealed class CommandGenerator : IIncrementalGenerator
                     builder.Append(completions[j]);
                 }
                 builder
-                    .Append(" });")
+                    .Append("]);")
                     .NewLine();
             }
 
             // Add option to context
             builder
-                .Indent()
                 .Indent()
                 .Append("context.AddOption(")
                 .Append(optionVar)
@@ -638,26 +637,23 @@ public sealed class CommandGenerator : IIncrementalGenerator
         // Generate Operation
         builder
             .Indent()
-            .Indent()
             .Append("context.Operation = (command, result, commandContext) =>")
             .NewLine();
         builder
             .Indent()
-            .Indent()
             .Append("{")
             .NewLine();
-
-        builder
-            .Indent()
-            .Indent()
-            .Indent()
-            .Append("var target = (")
-            .Append(invocation.TypeFullName)
-            .Append(")commandContext.Command;")
-            .NewLine();
+        builder.IndentLevel++;
 
         if (sortedOptions.Count > 0)
         {
+            builder
+                .Indent()
+                .Append("var target = (")
+                .Append(invocation.TypeFullName)
+                .Append(")commandContext.Command;")
+                .NewLine();
+
             builder.NewLine();
         }
 
@@ -665,11 +661,9 @@ public sealed class CommandGenerator : IIncrementalGenerator
         for (var i = 0; i < sortedOptions.Count; i++)
         {
             var option = sortedOptions[i];
-            var optionVar = $"option{i + 1}";
+            var optionVar = $"option{i}";
 
             builder
-                .Indent()
-                .Indent()
                 .Indent()
                 .Append("target.")
                 .Append(option.PropertyName)
@@ -687,17 +681,16 @@ public sealed class CommandGenerator : IIncrementalGenerator
         // Execute command
         builder
             .Indent()
-            .Indent()
-            .Indent()
             .Append("return command.ExecuteAsync(commandContext);")
             .NewLine();
 
+        builder.IndentLevel--;
         builder
-            .Indent()
             .Indent()
             .Append("};")
             .NewLine();
 
+        builder.IndentLevel--;
         builder
             .Indent()
             .Append("});")
@@ -710,6 +703,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
 
     internal sealed record InvocationModel(
         string TypeFullName,
+        bool ImplementsHandler,
         CommandModel CommandInfo,
         EquatableArray<FilterModel> Filters,
         EquatableArray<OptionModel> Options);
