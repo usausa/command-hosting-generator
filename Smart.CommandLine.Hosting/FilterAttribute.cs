@@ -1,16 +1,21 @@
 namespace Smart.CommandLine.Hosting;
 
-[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-public abstract class FilterAttribute : Attribute
+internal interface IFilterAttribute
 {
-    public int Order { get; set; }
+    int GetOrder();
 
-    public abstract Type FilterType { get; }
+    Type GetFilterType();
 }
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
-public sealed class FilterAttribute<TFilter> : FilterAttribute
+public sealed class FilterAttribute<TFilter> : Attribute, IFilterAttribute
     where TFilter : ICommandFilter
 {
-    public override Type FilterType => typeof(TFilter);
+    public int Order { get; set; }
+
+    public Type FilterType => typeof(TFilter);
+
+    int IFilterAttribute.GetOrder() => Order;
+
+    Type IFilterAttribute.GetFilterType() => FilterType;
 }

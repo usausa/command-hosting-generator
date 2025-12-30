@@ -1,7 +1,7 @@
 namespace Smart.CommandLine.Hosting;
 
 #pragma warning disable CA1711
-public interface IOptionAttribute
+internal interface IOptionAttribute
 {
     string GetName();
 

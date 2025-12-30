@@ -131,49 +131,17 @@ public sealed class CommandGenerator : IIncrementalGenerator
             return null;
         }
 
-        // Get type argument
         var typeArgument = method.TypeArguments[0];
-
-        // Extract command metadata
-        var commandInfo = ExtractCommandMetadata(typeArgument);
-
-        // Extract filter metadata
-        var filters = ExtractFilterMetadata(typeArgument);
-
-        // Extract option metadata
-        var options = ExtractOptionMetadata(typeArgument);
-
         return Results.Success(new InvocationModel(
             typeArgument.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-            commandInfo,
-            filters,
-            options));
+            ExtractFilterModels(typeArgument),
+            ExtractCommandModel(typeArgument),
+            ExtractOptionModels(typeArgument)));
     }
 
-    private static CommandMetadata? ExtractCommandMetadata(ITypeSymbol typeSymbol)
+    private static EquatableArray<FilterModel> ExtractFilterModels(ITypeSymbol typeSymbol)
     {
-        var attribute = typeSymbol.GetAttributes()
-            .FirstOrDefault(x => x.AttributeClass?.ToDisplayString() == CommandAttributeFullName);
-
-        if (attribute is null)
-        {
-            return null;
-        }
-
-        var name = attribute.ConstructorArguments.Length > 0
-            ? attribute.ConstructorArguments[0].Value?.ToString() ?? string.Empty
-            : string.Empty;
-
-        var description = attribute.ConstructorArguments.Length > 1
-            ? attribute.ConstructorArguments[1].Value?.ToString()
-            : null;
-
-        return new CommandMetadata(name, description);
-    }
-
-    private static EquatableArray<FilterMetadata> ExtractFilterMetadata(ITypeSymbol typeSymbol)
-    {
-        var filters = new List<FilterMetadata>();
+        var filters = new List<FilterModel>();
 
         foreach (var attribute in typeSymbol.GetAttributes())
         {
@@ -182,7 +150,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
                 continue;
             }
 
-            // Check if it's FilterAttribute or FilterAttribute<TFilter>
+            // Check FilterAttribute
             var baseType = attribute.AttributeClass;
             while (baseType is not null)
             {
@@ -202,7 +170,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
             var order = 0;
             foreach (var namedArg in attribute.NamedArguments)
             {
-                if (namedArg.Key == "Order" && namedArg.Value.Value is int orderValue)
+                if (namedArg is { Key: "Order", Value.Value: int orderValue })
                 {
                     order = orderValue;
                     break;
@@ -219,16 +187,34 @@ public sealed class CommandGenerator : IIncrementalGenerator
 
             if (filterType is not null)
             {
-                filters.Add(new FilterMetadata(order, filterType));
+                filters.Add(new FilterModel(filterType, order));
             }
         }
 
-        return new EquatableArray<FilterMetadata>(filters.ToArray());
+        return new EquatableArray<FilterModel>(filters.ToArray());
     }
 
-    private static EquatableArray<OptionMetadata> ExtractOptionMetadata(ITypeSymbol typeSymbol)
+    private static CommandModel? ExtractCommandModel(ITypeSymbol typeSymbol)
     {
-        var options = new List<OptionMetadata>();
+        var attribute = typeSymbol.GetAttributes()
+            .FirstOrDefault(x => x.AttributeClass?.ToDisplayString() == CommandAttributeFullName);
+        if (attribute is null)
+        {
+            return null;
+        }
+
+        var name = attribute.ConstructorArguments.Length > 0
+            ? attribute.ConstructorArguments[0].Value?.ToString() ?? string.Empty
+            : string.Empty;
+        var description = attribute.ConstructorArguments.Length > 1
+            ? attribute.ConstructorArguments[1].Value?.ToString()
+            : null;
+        return new CommandModel(name, description);
+    }
+
+    private static EquatableArray<OptionModel> ExtractOptionModels(ITypeSymbol typeSymbol)
+    {
+        var options = new List<OptionModel>();
 
         // Get all properties including base classes
         var currentType = typeSymbol;
@@ -274,7 +260,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
                     var aliases = Array.Empty<string>();
                     string? description = null;
                     var required = false;
-                    object? defaultValue = null;
+                    string? defaultValue = null;
                     var completions = Array.Empty<string>();
 
                     // Constructor arguments: order, name, aliases
@@ -300,6 +286,9 @@ public sealed class CommandGenerator : IIncrementalGenerator
                         }
                     }
 
+                    // Get the syntax node for the attribute
+                    var attributeSyntax = attribute.ApplicationSyntaxReference?.GetSyntax() as AttributeSyntax;
+
                     // Named arguments
                     foreach (var namedArg in attribute.NamedArguments)
                     {
@@ -312,20 +301,22 @@ public sealed class CommandGenerator : IIncrementalGenerator
                                 required = namedArg.Value.Value is bool reqValue && reqValue;
                                 break;
                             case "DefaultValue":
-                                defaultValue = namedArg.Value.Value;
+                                // Extract from syntax to preserve original code
+                                if (attributeSyntax?.ArgumentList is not null)
+                                {
+                                    foreach (var argument in attributeSyntax.ArgumentList.Arguments)
+                                    {
+                                        if (argument.NameEquals?.Name.Identifier.Text == "DefaultValue")
+                                        {
+                                            defaultValue = argument.Expression.ToString();
+                                            break;
+                                        }
+                                    }
+                                }
                                 break;
                             case "Completions":
-                                // Get generic type argument if attribute is OptionAttribute<T>
-                                //ITypeSymbol? genericTypeArgument = null;
-                                //if (attribute.AttributeClass is { IsGenericType: true } namedType &&
-                                //    namedType.TypeArguments.Length > 0)
-                                //{
-                                //    genericTypeArgument = namedType.TypeArguments[0];
-                                //}
-
-                                // Get the syntax node for the attribute
-                                if (attribute.ApplicationSyntaxReference?.GetSyntax() is AttributeSyntax attributeSyntax &&
-                                    attributeSyntax.ArgumentList is not null)
+                                // Get the syntax node for completions
+                                if (attributeSyntax?.ArgumentList is not null)
                                 {
                                     foreach (var argument in attributeSyntax.ArgumentList.Arguments)
                                     {
@@ -343,7 +334,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
                     // Get property type
                     var propertyType = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
-                    options.Add(new OptionMetadata(
+                    options.Add(new OptionModel(
                         property.Name,
                         propertyType,
                         order,
@@ -364,7 +355,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
             hierarchyLevel--;
         }
 
-        return new EquatableArray<OptionMetadata>(options.ToArray());
+        return new EquatableArray<OptionModel>(options.ToArray());
     }
 
     private static string[] ExtractStringArray(TypedConstant arrayConstant)
@@ -422,8 +413,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
 
     private static void Execute(SourceProductionContext context, ImmutableArray<Result<InvocationModel>> invocations)
     {
-        //var successfulInvocations = new List<InvocationModel>();
-
+        // TODO error ?
         //foreach (var result in invocations)
         //{
         //    if (result.Value is not null)
@@ -436,7 +426,11 @@ public sealed class CommandGenerator : IIncrementalGenerator
         //    }
         //}
 
-        var successfulInvocations = invocations.SelectValue().ToList();
+        var targetInvocations = invocations.SelectValue().ToList();
+        if (targetInvocations.Count == 0)
+        {
+            return;
+        }
 
         // Build initializer source
         var builder = new SourceBuilder();
@@ -464,9 +458,9 @@ public sealed class CommandGenerator : IIncrementalGenerator
         builder.BeginScope();
 
         // Generate metadata registration for each invocation
-        foreach (var invocation in successfulInvocations)
+        foreach (var invocation in targetInvocations)
         {
-            // AddCommandMetadata
+            // AddCommandModel
             if (invocation.CommandInfo is not null)
             {
                 builder
@@ -610,9 +604,8 @@ public sealed class CommandGenerator : IIncrementalGenerator
                     .Indent()
                     .Indent()
                     .Append(optionVar)
-                    .Append(".DefaultValueFactory = _ => ");
-                GenerateDefaultValue(builder, option.DefaultValue);
-                builder
+                    .Append(".DefaultValueFactory = _ => ")
+                    .Append(option.DefaultValue)
                     .Append(";")
                     .NewLine();
             }
@@ -725,66 +718,25 @@ public sealed class CommandGenerator : IIncrementalGenerator
             .NewLine();
     }
 
-    // TODO 削除
-    private static void GenerateDefaultValue(SourceBuilder builder, object? defaultValue)
-    {
-        if (defaultValue is null)
-        {
-            builder.Append("default!");
-            return;
-        }
-
-        switch (defaultValue)
-        {
-            case string str:
-                builder
-                    .Append("\"")
-                    .Append(str)
-                    .Append("\"");
-                break;
-            case bool b:
-                builder.Append(b ? "true" : "false");
-                break;
-            case int i:
-                builder.Append(i.ToString());
-                break;
-            case long l:
-                builder.Append(l.ToString()).Append("L");
-                break;
-            case float f:
-                builder.Append(f.ToString()).Append("f");
-                break;
-            case double d:
-                builder.Append(d.ToString()).Append("d");
-                break;
-            case decimal m:
-                builder.Append(m.ToString()).Append("m");
-                break;
-            default:
-                builder.Append("default!");
-                break;
-        }
-    }
-
     // ------------------------------------------------------------
     // Models
     // ------------------------------------------------------------
 
     internal sealed record InvocationModel(
         string TypeFullName,
-        CommandMetadata? CommandInfo,
-        EquatableArray<FilterMetadata> Filters,
-        EquatableArray<OptionMetadata> Options);
+        EquatableArray<FilterModel> Filters,
+        CommandModel? CommandInfo,
+        EquatableArray<OptionModel> Options);
 
-    internal sealed record CommandMetadata(
+    internal sealed record CommandModel(
         string Name,
         string? Description);
 
-    internal sealed record FilterMetadata(
-        int Order,
-        string FilterType);
+    internal sealed record FilterModel(
+        string FilterType,
+        int Order);
 
-    internal sealed record OptionMetadata(
+    internal sealed record OptionModel(
         string PropertyName,
         string PropertyType,
         int Order,
@@ -794,6 +746,6 @@ public sealed class CommandGenerator : IIncrementalGenerator
         EquatableArray<string> Aliases,
         string? Description,
         bool Required,
-        object? DefaultValue,
+        string? DefaultValue,
         EquatableArray<string> Completions);
 }

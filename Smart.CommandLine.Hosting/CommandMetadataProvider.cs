@@ -60,10 +60,15 @@ public static class CommandMetadataProvider
 
         descriptors = new List<FilterDescriptor>();
         FilterDescriptors[type] = descriptors;
-        // ReSharper disable once LoopCanBeConvertedToQuery
-        foreach (var attribute in type.GetCustomAttributes(true).OfType<FilterAttribute>())
+        foreach (var attribute in type.GetCustomAttributes(true))
         {
-            descriptors.Add(new FilterDescriptor(attribute.FilterType, attribute.Order));
+            var attributeType = attribute.GetType();
+            if (attributeType.IsGenericType &&
+                (attributeType.GetGenericTypeDefinition() == typeof(FilterAttribute<>)) &&
+                (attribute is IFilterAttribute filterAttribute))
+            {
+                descriptors.Add(new FilterDescriptor(filterAttribute.GetFilterType(), filterAttribute.GetOrder()));
+            }
         }
 
         return descriptors;
