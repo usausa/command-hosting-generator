@@ -309,9 +309,6 @@ public sealed class CommandGenerator : IIncrementalGenerator
                         }
                     }
 
-                    // Get the syntax node for the attribute
-                    var attributeSyntax = attribute.ApplicationSyntaxReference?.GetSyntax() as AttributeSyntax;
-
                     // Named arguments
                     foreach (var namedArg in attribute.NamedArguments)
                     {
@@ -323,21 +320,12 @@ public sealed class CommandGenerator : IIncrementalGenerator
                             case RequiredPropertyName:
                                 required = namedArg.Value.Value is true;
                                 break;
+                            case DefaultValuePropertyName:
+                                defaultValue = namedArg.Value.ToCSharpStringWithPostfix();
+                                break;
                             case CompletionsPropertyName:
                                 completions = ExtractCompletions(namedArg.Value);
                                 break;
-                        }
-                    }
-
-                    // Extract from syntax to preserve original code
-                    if (attributeSyntax?.ArgumentList is not null)
-                    {
-                        foreach (var argument in attributeSyntax.ArgumentList.Arguments)
-                        {
-                            if (argument.NameEquals?.Name.Identifier.Text == DefaultValuePropertyName)
-                            {
-                                defaultValue = argument.Expression.ToString();
-                            }
                         }
                     }
 
@@ -365,13 +353,13 @@ public sealed class CommandGenerator : IIncrementalGenerator
         return new EquatableArray<OptionModel>(options.ToArray());
     }
 
-    private static string[] ExtractAliases(TypedConstant arrayConstant)
+    private static string[] ExtractAliases(TypedConstant typedConstant)
     {
-        if (arrayConstant is { Kind: TypedConstantKind.Array, Values.IsEmpty: false })
+        if (typedConstant is { Kind: TypedConstantKind.Array, Values.IsEmpty: false })
         {
             var result = new List<string>();
 
-            foreach (var element in arrayConstant.Values)
+            foreach (var element in typedConstant.Values)
             {
                 if (element.Value is string str)
                 {
@@ -385,13 +373,13 @@ public sealed class CommandGenerator : IIncrementalGenerator
         return [];
     }
 
-    private static string[] ExtractCompletions(TypedConstant arrayConstant)
+    private static string[] ExtractCompletions(TypedConstant typedConstant)
     {
-        if (arrayConstant is { Kind: TypedConstantKind.Array, Values.IsEmpty: false })
+        if (typedConstant is { Kind: TypedConstantKind.Array, Values.IsEmpty: false })
         {
             var result = new List<string>();
 
-            foreach (var element in arrayConstant.Values)
+            foreach (var element in typedConstant.Values)
             {
                 result.Add(ConvertValueToString(element));
             }
@@ -402,15 +390,15 @@ public sealed class CommandGenerator : IIncrementalGenerator
         return [];
     }
 
-    private static string ConvertValueToString(TypedConstant element)
+    private static string ConvertValueToString(TypedConstant typedConstant)
     {
-        if (element.Type?.TypeKind == TypeKind.Enum)
+        if (typedConstant.Type?.TypeKind == TypeKind.Enum)
         {
-            if (element.Type is INamedTypeSymbol enumType)
+            if (typedConstant.Type is INamedTypeSymbol enumType)
             {
                 var name = enumType.GetMembers()
                     .OfType<IFieldSymbol>()
-                    .FirstOrDefault(x => x is { HasConstantValue: true } && Equals(x.ConstantValue, element.Value))
+                    .FirstOrDefault(x => x is { HasConstantValue: true } && Equals(x.ConstantValue, typedConstant.Value))
                     ?.Name;
                 return name ?? string.Empty;
             }
@@ -418,7 +406,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
             return string.Empty;
         }
 
-        return element.Value?.ToString() ?? string.Empty;
+        return typedConstant.Value?.ToString() ?? string.Empty;
     }
 
     // ------------------------------------------------------------
@@ -615,11 +603,11 @@ public sealed class CommandGenerator : IIncrementalGenerator
                     .Append("global::System.CommandLine.CompletionSourceExtensions.Add(")
                     .Append(optionVar)
                     .Append(".CompletionSources");
-                foreach (var t in completions)
+                foreach (var completion in completions)
                 {
                     builder
                         .Append(", \"")
-                        .Append(EscapeStringLiteral(t))
+                        .Append(completion)
                         .Append("\"");
                 }
                 builder
@@ -699,10 +687,5 @@ public sealed class CommandGenerator : IIncrementalGenerator
             .Indent()
             .Append("});")
             .NewLine();
-    }
-
-    private static string EscapeStringLiteral(string value)
-    {
-        return value.Replace("\"", "\\\"");
     }
 }
