@@ -10,7 +10,8 @@
 - Attribute-based option mapping
 - Hierarchical sub-command structure
 - Global and command-specific filters for cross-cutting concerns (logging, exception handling, performance monitoring)
-
+- Source generator for metadata optimization
+ 
 ## Usage example
 
 ```csharp
@@ -126,7 +127,3 @@ public sealed class LoggingFilter : ICommandFilter
     }
 }
 ```
-
-# TODO
-
-- [ ] Source Generator based builder
