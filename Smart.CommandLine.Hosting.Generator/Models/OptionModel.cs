@@ -13,4 +13,4 @@ internal sealed record OptionModel(
     string? Description,
     bool Required,
     string? DefaultValue,
-    EquatableArray<object?> Completions);
+    EquatableArray<string> Completions);
