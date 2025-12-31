@@ -1,6 +1,7 @@
 namespace Smart.CommandLine.Hosting;
 
 using System.CommandLine;
+using System.Diagnostics.CodeAnalysis;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,10 +32,10 @@ public interface ICommandBuilder
 {
     ICommandBuilder ConfigureRootCommand(Action<IRootCommandBuilder> configure);
 
-    ICommandBuilder AddCommand<TCommand>(Action<ISubCommandBuilder>? configure = null)
+    ICommandBuilder AddCommand<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TCommand>(Action<ISubCommandBuilder>? configure = null)
         where TCommand : class;
 
-    ICommandBuilder AddGlobalFilter<TFilter>(int order = 0)
+    ICommandBuilder AddGlobalFilter<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TFilter>(int order = 0)
         where TFilter : class, ICommandFilter;
 
     ICommandBuilder AddGlobalFilter(Type filterType, int order = 0);
@@ -50,13 +51,13 @@ public interface IRootCommandBuilder
 
     IRootCommandBuilder Configure(Action<RootCommand> configure);
 
-    IRootCommandBuilder UseHandler<THandler>()
+    IRootCommandBuilder UseHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>()
         where THandler : class, ICommandHandler;
 }
 
 public interface ISubCommandBuilder
 {
-    ISubCommandBuilder AddSubCommand<TCommand>(
+    ISubCommandBuilder AddSubCommand<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TCommand>(
         Action<ISubCommandBuilder>? configure = null)
         where TCommand : class;
 }
