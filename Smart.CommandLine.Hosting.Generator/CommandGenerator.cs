@@ -283,7 +283,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
                     string? description = null;
                     var required = false;
                     string? defaultValue = null;
-                    var completions = Array.Empty<string>();
+                    var completions = Array.Empty<object?>();
 
                     // Constructor arguments: order, name, aliases
                     if (attribute.ConstructorArguments.Length >= 2)
@@ -323,6 +323,9 @@ public sealed class CommandGenerator : IIncrementalGenerator
                             case RequiredPropertyName:
                                 required = namedArg.Value.Value is true;
                                 break;
+                            case CompletionsPropertyName:
+                                completions = ExtractCompletions(namedArg.Value);
+                                break;
                         }
                     }
 
@@ -334,11 +337,6 @@ public sealed class CommandGenerator : IIncrementalGenerator
                             if (argument.NameEquals?.Name.Identifier.Text == DefaultValuePropertyName)
                             {
                                 defaultValue = argument.Expression.ToString();
-                            }
-                            else if (argument.NameEquals?.Name.Identifier.Text == CompletionsPropertyName)
-                            {
-                                completions = ExtractCompletionsFromSyntax(argument.Expression);
-                                break;
                             }
                         }
                     }
@@ -354,7 +352,7 @@ public sealed class CommandGenerator : IIncrementalGenerator
                         description,
                         required,
                         defaultValue,
-                        new EquatableArray<string>(completions)));
+                        new EquatableArray<object?>(completions)));
 
                     propertyIndex++;
                 }
@@ -387,31 +385,21 @@ public sealed class CommandGenerator : IIncrementalGenerator
         return [];
     }
 
-    private static string[] ExtractCompletionsFromSyntax(ExpressionSyntax expression)
+    private static object?[] ExtractCompletions(TypedConstant arrayConstant)
     {
-        var completions = new List<string>();
+        if (arrayConstant is { Kind: TypedConstantKind.Array, Values.IsEmpty: false })
+        {
+            var result = new List<object?>();
 
-        // Check for implicit array creation: new[] { ... }
-        if (expression is ImplicitArrayCreationExpressionSyntax arrayCreation)
-        {
-            foreach (var element in arrayCreation.Initializer.Expressions)
+            foreach (var element in arrayConstant.Values)
             {
-                completions.Add(element.ToString());
+                result.Add(element.Value);
             }
-        }
-        // Check for collection expression: [ ... ]
-        else if (expression is CollectionExpressionSyntax collectionExpression)
-        {
-            foreach (var element in collectionExpression.Elements)
-            {
-                if (element is ExpressionElementSyntax expressionElement)
-                {
-                    completions.Add(expressionElement.Expression.ToString());
-                }
-            }
+
+            return result.ToArray();
         }
 
-        return completions.ToArray();
+        return [];
     }
 
     // ------------------------------------------------------------
@@ -605,18 +593,22 @@ public sealed class CommandGenerator : IIncrementalGenerator
             {
                 builder
                     .Indent()
+                    .Append("global::System.CommandLine.CompletionSourceExtensions.Add(")
                     .Append(optionVar)
-                    .Append(".CompletionSources.Add([");
+                    .Append(".CompletionSources, ");
                 for (var j = 0; j < completions.Length; j++)
                 {
                     if (j > 0)
                     {
                         builder.Append(", ");
                     }
-                    builder.Append(completions[j]);
+                    builder.Append('"');
+                    var str = completions[j]?.ToString() ?? string.Empty;
+                    builder.Append(str);
+                    builder.Append('"');
                 }
                 builder
-                    .Append("]);")
+                    .Append(");")
                     .NewLine();
             }
 
